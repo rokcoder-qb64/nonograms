@@ -1,19 +1,18 @@
       HIMEM=LOMEM+&800000
-      PRINT "CREATE AND TEST RANDOM NONOGROM (Y/N)";: INPUT A$
-      IF A$ = "Y" THEN
-        W% = 20: H% = 20: PROCprepareData
-        TIME = 0
-        REPEAT
-          PROCcreate
-          PROCsolve
-        UNTIL solveCount=0
-        time = TIME
-        PROCtransfer: PROCdisplay
-        PRINT time/100;" seconds"
-        END
-      ENDIF
-      PRINT "CREATE AND TEST WIKI EXAMPLE (Y/N)";: INPUT A$
-      IF A$ = "Y" THEN PROCdemoNonogram: PROCsolve: PROCtransfer: PROCdisplay: END
+
+      W% = 20: H% = 20: PROCprepareData
+
+      TIME = 0
+      REPEAT
+        PROCcreate
+        PROCsolve
+      UNTIL solveCount=0
+      time = TIME
+
+      PROCtransfer: PROCdisplay
+
+      PRINT time/100;" seconds"
+
       END
 
       REM W% - gridWidth
@@ -47,31 +46,6 @@
       DIM solvedGrid(W%, H%)
       ENDPROC
 
-      DEF PROCdemoNonogram
-      W% = 8: H% = 11: PROCprepareData
-      REM Set up rows
-      n%(1, 1) = 0
-      n%(1, 2) = 1: r%(1, 2, 1) = 4
-      n%(1, 3) = 1: r%(1, 3, 1) = 6
-      n%(1, 4) = 2: r%(1, 4, 1) = 2: r%(1, 4, 2) = 2
-      n%(1, 5) = 2: r%(1, 5, 1) = 2: r%(1, 5, 2) = 2
-      n%(1, 6) = 1: r%(1, 6, 1) = 6
-      n%(1, 7) = 1: r%(1, 7, 1) = 4
-      n%(1, 8) = 1: r%(1, 8, 1) = 2
-      n%(1, 9) = 1: r%(1, 9, 1) = 2
-      n%(1, 10) = 1: r%(1, 10, 1) = 2
-      n%(1, 11) = 0
-      REM Set up columns
-      n%(2, 1) = 0
-      n%(2, 2) = 1: r%(2, 2, 1) = 9
-      n%(2, 3) = 1: r%(2, 3, 1) = 9
-      n%(2, 4) = 2: r%(2, 4, 1) = 2: r%(2, 4, 2) = 2
-      n%(2, 5) = 2: r%(2, 5, 1) = 2: r%(2, 5, 2) = 2
-      n%(2, 6) = 1: r%(2, 6, 1) = 4
-      n%(2, 7) = 1: r%(2, 7, 1) = 4
-      n%(2, 8) = 0
-      ENDPROC
-
       DEF PROCtransfer
       FOR Y% = 1 TO H%: FOR X% = 1 TO W%: g%(X%, Y%) = solvedGrid(X%, Y%): NEXT: NEXT
       ENDPROC
@@ -85,18 +59,20 @@
       DEF PROCcreateLine(t,i)
       IF t = 1 THEN x = 1: y = i: dx = 1: dy = 0 ELSE x = i: y = 1: dx = 0: dy = 1
       l = 1
-  880 IF x > W% OR y > H% OR g%(x, y) <> 1 THEN GOTO 910
-      x = x + dx: y = y + dy
-      GOTO 880
-  910 IF x > W% OR y > H% THEN GOTO 990
-      k = 0
-  930 IF x > W% OR y > H% OR g%(x, y) <> 2 THEN GOTO 970
-      x = x + dx: y = y + dy
-      k = k + 1
-      GOTO 930
-  970 r%(t, i, l) = k
-      l = l + 1
-  990 IF x <= W% AND y <= H% THEN GOTO 880
+      REPEAT
+        WHILE x <= W% AND y <= H% AND g%(x, y) = 1
+          x = x + dx: y = y + dy
+        ENDWHILE
+        IF x <= W% AND y <= H% THEN
+          k = 0
+          WHILE x <= W% AND y <= H% AND g%(x, y) = 2
+            x = x + dx: y = y + dy
+            k = k + 1
+          ENDWHILE
+          r%(t, i, l) = k
+          l = l + 1
+        ENDIF
+      UNTIL x > W% OR y > H%
       n%(t, i) = l - 1
       ENDPROC
 
@@ -138,8 +114,9 @@
         NEXT
       NEXT
       solveCount = W% * H%
- 1410 PROCscan
-      IF solveCount > 0 AND canSolve = 1 THEN GOTO 1410
+      REPEAT
+        PROCscan
+      UNTIL solveCount = 0 OR canSolve = 0
       ENDPROC
 
       DEF PROCscan
@@ -149,14 +126,12 @@
       PROCsetCommonalities
       t = 2
       m = W%: totalGap = H%
-      IF canSolve = 0 THEN GOTO 1540
-      PROCremoveNonMatchingLines
- 1540 PROCsetCommonalities
+      IF canSolve = 1 THEN PROCremoveNonMatchingLines
+      PROCsetCommonalities
       t = 1
       m = H%: totalGap = W%
-      IF canSolve = 0 THEN GOTO 1590
-      PROCremoveNonMatchingLines
- 1590 ENDPROC
+      IF canSolve = 1 THEN PROCremoveNonMatchingLines
+      ENDPROC
 
       DEF PROCsetCommonalities
       FOR i = 1 TO m
@@ -220,15 +195,17 @@
       IF gCount > 2 THEN gapSize = gapSize - (gCount - 2)
       gapTally = 0
       permutationCount = 0
- 2230 p%(gCount) = gapSize - gapTally
-      PROCaddPermutation
-      j = 0
- 2260 j = j + 1
-      p%(j) = p%(j) + 1
-      gapTally = gapTally + 1
-      IF gapTally > gapSize THEN gapTally = gapTally - p%(j): p%(j) = 0
-      IF j <> gCount AND p%(j) = 0 THEN GOTO 2260
-      IF j <> gCount THEN GOTO 2230
+      REPEAT
+        p%(gCount) = gapSize - gapTally
+        PROCaddPermutation
+        j = 0
+        REPEAT
+          j = j + 1
+          p%(j) = p%(j) + 1
+          gapTally = gapTally + 1
+          IF gapTally > gapSize THEN gapTally = gapTally - p%(j): p%(j) = 0
+        UNTIL j = gCount OR p%(j) <> 0
+      UNTIL j = gCount
       m%(t, i) = permutationCount
       ENDPROC
 
