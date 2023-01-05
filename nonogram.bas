@@ -1,12 +1,12 @@
       HIMEM=LOMEM+&800000
 
-      W% = 20: H% = 20: PROCprepareData
+      S% = 20: PROCprepareData
 
       TIME = 0
       REPEAT
         PROCcreate
         PROCsolve
-      UNTIL solveCount=0
+      UNTIL C%=0
       time = TIME
 
       PROCtransfer: PROCdisplay
@@ -15,23 +15,39 @@
 
       END
 
-      REM W% - gridWidth
-      REM H% - gridHeight
+      REM B% - rolling 2^ bit value
+      REM C% - solve counter
+      REM D% - boolean of whether row/column is solvable
+      REM E% - bit value
+      REM G% - gap count
+      REM I% - index
+      REM J% - index
+      REM K% - counter
+      REM L% - counter
+      REM N% - counter
+      REM O% - temp var
+      REM P% - permutation counter
+      REM R% - valid (boolean)
+      REM S% - gridWidth/gridHeight
       REM T% - temp var
+      REM U% - delta x
+      REM V% - delta y
+      REM W% - temp var
+      REM X% - column index
+      REM Y% - row index
+      REM Z% - line type (row=0, column=1)
 
+      REM a%() - perm$
       REM g%() - grid
-      REM r%() - runLines
+      REM m%() - permutations
       REM n%() - numLines
       REM p%() - gap
-      REM m%() - permutations
-
-      REM p$() - perm$
+      REM r%() - runLines
+      REM s%() - play grid
 
       DEF PROCprepareData
-      REM Maximum dimension (width or height)
-      S% = W%: IF H% > W% THEN S% = H%
       REM All cells in grid(,) can be 0 (unknown), 1 (empty) or 2 (full)
-      DIM g%(W% + 1, H% + 1)
+      DIM g%(S% + 1, S% + 1)
       REM All nonogram line data runLines(a,b,c) where a=1 or 2 (row or column), b=row/column index and c=nonogram run data
       DIM r%(2, S%, (S% + 1) / 2)
       REM Relates to r%(a,b,c) and stores number of entries for c
@@ -39,186 +55,190 @@
       REM Stores all possible gap permutations for a row or column
       DIM p%((S% + 1) / 2 + 1)
       REM Stores all possible m% for each row and column
-      DIM p$(2, S%, 6000): REM This will blow up if any row or column has more than 6000 m%
+      DIM a%(2, S%, 6000): REM This will blow up if any row or column has more than 6000 m%
       REM Permutation count for each row and column
       DIM m%(2, S%)
       REM Grid for solving in
-      DIM solvedGrid(W%, H%)
+      DIM s%(S%, S%)
       ENDPROC
 
       DEF PROCtransfer
-      FOR Y% = 1 TO H%: FOR X% = 1 TO W%: g%(X%, Y%) = solvedGrid(X%, Y%): NEXT: NEXT
+      FOR Y% = 1 TO S%: FOR X% = 1 TO S%: g%(X%, Y%) = s%(X%, Y%): NEXT: NEXT
       ENDPROC
 
       DEF PROCcreate
-      FOR Y% = 1 TO H%:FOR X% = 1 TO W%:g%(X%, Y%) = RND(2):NEXT:NEXT
-      FOR Y% = 1 TO H%: PROCcreateLine(1,Y%): NEXT
-      FOR X% = 1 TO W%: PROCcreateLine(2,X%): NEXT
+      FOR Y% = 1 TO S%:FOR X% = 1 TO S%:g%(X%, Y%) = RND(2):NEXT:NEXT
+      FOR Z% = 1 TO 2: FOR I% = 1 TO S%: PROCcreateLine: NEXT: NEXT
       ENDPROC
 
-      DEF PROCcreateLine(t,i)
-      IF t = 1 THEN x = 1: y = i: dx = 1: dy = 0 ELSE x = i: y = 1: dx = 0: dy = 1
-      l = 1
+      DEF PROCcreateLine
+      IF Z% = 1 THEN X% = 1: Y% = I%: U% = 1: V% = 0 ELSE X% = I%: Y% = 1: U% = 0: V% = 1
+      L% = 1
       REPEAT
-        WHILE x <= W% AND y <= H% AND g%(x, y) = 1
-          x = x + dx: y = y + dy
+        WHILE X% <= S% AND Y% <= S% AND g%(X%, Y%) = 1
+          X% = X% + U%: Y% = Y% + V%
         ENDWHILE
-        IF x <= W% AND y <= H% THEN
-          k = 0
-          WHILE x <= W% AND y <= H% AND g%(x, y) = 2
-            x = x + dx: y = y + dy
-            k = k + 1
+        IF X% <= S% AND Y% <= S% THEN
+          K% = 0
+          WHILE X% <= S% AND Y% <= S% AND g%(X%, Y%) = 2
+            X% = X% + U%: Y% = Y% + V%
+            K% = K% + 1
           ENDWHILE
-          r%(t, i, l) = k
-          l = l + 1
+          r%(Z%, I%, L%) = K%
+          L% = L% + 1
         ENDIF
-      UNTIL x > W% OR y > H%
-      n%(t, i) = l - 1
+      UNTIL X% > S% OR Y% > S%
+      n%(Z%, I%) = L% - 1
       ENDPROC
 
       DEF PROCdisplay
       L% = 0
-      FOR X% = 1 TO W%
+      FOR X% = 1 TO S%
         IF n%(2, X%) > L% THEN L% = n%(2, X%)
       NEXT
       FOR J% = L% TO 1 STEP -1
-        FOR X% = 1 TO W%
+        FOR X% = 1 TO S%
           IF n%(2, X%) >= J% THEN PRINT "  "; RIGHT$(STR$(r%(2, X%, n%(2, X%)+1-J%)),1); " "; ELSE PRINT "    ";
         NEXT
         PRINT
       NEXT
-      FOR Y% = 1 TO H%
-        FOR X% = 1 TO W%
+      FOR Y% = 1 TO S%
+        FOR X% = 1 TO S%
           PRINT "+---";
         NEXT
         PRINT "+"
-        FOR X% = 1 TO W%
+        FOR X% = 1 TO S%
           IF g%(X%, Y%) = 2 THEN PRINT "| * "; ELSE IF g%(X%, Y%) = 1 THEN PRINT "|   "; ELSE PRINT "| ? ";
         NEXT
         PRINT "|";
         IF n%(1, Y%) > 0 THEN FOR J% = 1 TO n%(1, Y%): PRINT " "; RIGHT$(STR$(r%(1, Y%, J%)),1);: NEXT
         PRINT
       NEXT
-      FOR X% = 1 TO W%
+      FOR X% = 1 TO S%
         PRINT "+---";
       NEXT
       PRINT "+"
       ENDPROC
 
       DEF PROCsolve
-      FOR Y% = 1 TO H%:FOR X% = 1 TO W%:solvedGrid(X%, Y%) = 0:NEXT:NEXT
-      FOR t = 1 TO 2
-        IF t = 1 THEN m = H%: totalGap = W% ELSE m = W%: totalGap = H%
-        FOR i = 1 TO m
+      FOR Y% = 1 TO S%:FOR X% = 1 TO S%:s%(X%, Y%) = 0:NEXT:NEXT
+      FOR Z% = 1 TO 2
+        FOR I% = 1 TO S%
           PROCgetGapPermutations
         NEXT
       NEXT
-      solveCount = W% * H%
+      C% = S% * S%
       REPEAT
         PROCscan
-      UNTIL solveCount = 0 OR canSolve = 0
+      UNTIL C% = 0 OR D% = 0
       ENDPROC
 
       DEF PROCscan
-      canSolve = 0
-      t = 1
-      m = H%: totalGap = W%
+      D% = 0
+      Z% = 1
       PROCsetCommonalities
-      t = 2
-      m = W%: totalGap = H%
-      IF canSolve = 1 THEN PROCremoveNonMatchingLines
+      Z% = 2
+      IF D% = 1 THEN PROCremoveNonMatchingLines
       PROCsetCommonalities
-      t = 1
-      m = H%: totalGap = W%
-      IF canSolve = 1 THEN PROCremoveNonMatchingLines
+      Z% = 1
+      IF D% = 1 THEN PROCremoveNonMatchingLines
       ENDPROC
 
       DEF PROCsetCommonalities
-      FOR i = 1 TO m
-        IF t = 1 THEN x = 1: y = i: dx = 1: dy = 0 ELSE x = i: y = 1: dx = 0: dy = 1
-        FOR k = 1 TO totalGap
-          v$ = STR$(solvedGrid(x, y))
-          IF v$ = "0" THEN
-            valid = 1
-            v$ = MID$(p$(t, i, 1), k, 1)
-            j = 2
-            WHILE j <= m%(t, i) AND valid = 1
-              IF v$ <> MID$(p$(t, i, j), k, 1) THEN valid = 0
-              j = j + 1
+      FOR I% = 1 TO S%
+        IF Z% = 1 THEN X% = 1: Y% = I%: U% = 1: V% = 0 ELSE X% = I%: Y% = 1: U% = 0: V% = 1
+        B% = 1
+        FOR K% = 1 TO S%
+          IF s%(X%, Y%) = 0 THEN
+            R% = 1
+            E% = a%(Z%,I%,1) AND B%
+            J% = 2
+            WHILE J% <= m%(Z%, I%) AND R% = 1
+              IF (((E%>0)<>((a%(Z%,I%,J%) AND B%)>0))) THEN R% = 0
+              J% = J% + 1
             ENDWHILE
-            IF valid = 1 THEN solvedGrid(x, y) = VAL(v$): canSolve = 1: solveCount = solveCount - 1
+            IF R% = 1 THEN
+              IF E%>0 THEN E%=1
+              s%(X%, Y%) = E%+1
+              D% = 1: C% = C% - 1
+            ENDIF
           ENDIF
-          x = x + dx: y = y + dy
+          B% = B% * 2
+          X% = X% + U%: Y% = Y% + V%
         NEXT
       NEXT
       ENDPROC
 
       DEF PROCremoveNonMatchingLines
-      FOR i = 1 TO m
-        IF t = 1 THEN x = 1: y = i: dx = 1: dy = 0 ELSE x = i: y = 1: dx = 0: dy = 1
-        FOR k = 1 TO totalGap
-          v% = solvedGrid(x, y)
-          IF v% > 0 THEN
-            j = m%(t, i)
-            v$=STR$(v%)
-            WHILE j > 0
-              IF v$ <> MID$(p$(t, i, j), k, 1) THEN p$(t, i, j)=""
-              j = j - 1
+      FOR I% = 1 TO S%
+        IF Z% = 1 THEN X% = 1: Y% = I%: U% = 1: V% = 0 ELSE X% = I%: Y% = 1: U% = 0: V% = 1
+        B% = 1
+        FOR K% = 1 TO S%
+          E% = s%(X%, Y%)
+          IF E% > 0 THEN
+            J% = m%(Z%, I%)
+            WHILE J% > 0 AND a%(Z%, I%, J%)<>-1
+              IF (((E%>1)<>((a%(Z%,I%,J%) AND B%)>0))) THEN a%(Z%, I%, J%)=-1
+              J% = J% - 1
             ENDWHILE
           ENDIF
-          x = x + dx: y = y + dy
+          B%=B%*2
+          X% = X% + U%: Y% = Y% + V%
         NEXT
       NEXT
       PROCremoveNullStrings
       ENDPROC
 
-      DEF PROCremoveLine
-      IF j < m%(t, i) THEN FOR T% = j + 1 TO m%(t, i): p$(t, i, T% - 1) = p$(t, i, T%): NEXT
-      m%(t, i) = m%(t, i) - 1
-      ENDPROC
-
       DEF PROCremoveNullStrings
-      FOR i = 1 TO m
-        d=0
-        FOR j = 1 TO m%(t, i)
-          IF p$(t, i, j)="" THEN d=d+1 ELSE IF d>0 THEN p$(t,i,j-d)=p$(t,i,j)
+      FOR I% = 1 TO S%
+        K%=0
+        FOR J% = 1 TO m%(Z%, I%)
+          IF a%(Z%, I%, J%)=-1 THEN K%=K%+1 ELSE IF K%>0 THEN a%(Z%,I%,J%-K%)=a%(Z%,I%,J%)
         NEXT
-        m%(t,i)=m%(t,i)-d
+        m%(Z%,I%)=m%(Z%,I%)-K%
       NEXT
       ENDPROC
 
       DEF PROCgetGapPermutations
-      gCount = n%(t, i) + 1
-      FOR j = 1 TO gCount: p%(j) = 0: NEXT
-      gapSize = totalGap
-      IF gCount > 1 THEN FOR j = 1 TO gCount - 1: gapSize = gapSize - r%(t, i, j): NEXT
-      IF gCount > 2 THEN gapSize = gapSize - (gCount - 2)
-      gapTally = 0
-      permutationCount = 0
+      G% = n%(Z%, I%) + 1
+      FOR J% = 1 TO G%: p%(J%) = 0: NEXT
+      K% = S%
+      IF G% > 1 THEN FOR J% = 1 TO G% - 1: K% = K% - r%(Z%, I%, J%): NEXT
+      IF G% > 2 THEN K% = K% - (G% - 2)
+      L% = 0
+      P% = 0
       REPEAT
-        p%(gCount) = gapSize - gapTally
+        p%(G%) = K% - L%
         PROCaddPermutation
-        j = 0
+        J% = 0
         REPEAT
-          j = j + 1
-          p%(j) = p%(j) + 1
-          gapTally = gapTally + 1
-          IF gapTally > gapSize THEN gapTally = gapTally - p%(j): p%(j) = 0
-        UNTIL j = gCount OR p%(j) <> 0
-      UNTIL j = gCount
-      m%(t, i) = permutationCount
+          J% = J% + 1
+          p%(J%) = p%(J%) + 1
+          L% = L% + 1
+          IF L% > K% THEN L% = L% - p%(J%): p%(J%) = 0
+        UNTIL J% = G% OR p%(J%) <> 0
+      UNTIL J% = G%
+      m%(Z%, I%) = P%
       ENDPROC
 
       DEF PROCaddPermutation
-      permutationCount = permutationCount + 1
-      t$ = ""
-      PROCrepeatByte("1",p%(1))
-      IF gCount > 1 THEN PROCrepeatByte("2",r%(t, i, 1))
-      IF gCount > 2 THEN FOR tmp = 2 TO gCount - 1: PROCrepeatByte("1",p%(tmp) + 1): PROCrepeatByte("2",r%(t, i, tmp)):NEXT
-      PROCrepeatByte("1",p%(gCount))
-      p$(t, i, permutationCount) = t$
+      P% = P% + 1
+      E% = 0:B% = 1
+      N% = p%(1): PROCrepeatByte
+      IF G% > 1 THEN N% = r%(Z%, I%, 1): O% = 1: PROCrepeatByte
+      IF G% > 2 THEN FOR W% = 2 TO G% - 1: N% = p%(W%) + 1: O% = 0: PROCrepeatByte: N% = r%(Z%, I%, W%): O% = 1: PROCrepeatByte:NEXT
+      N% = p%(G%): O% = 0: PROCrepeatByte
+      a%(Z%, I%, P%) = E%
       ENDPROC
 
-      DEF PROCrepeatByte(byte$,num)
-      IF num > 0 THEN FOR temp = 1 TO num: t$ = t$ + byte$: NEXT
+      DEF PROCrepeatByte
+      IF N% > 0 THEN
+        IF O% = 0 THEN
+          B% = B% * (2 ^ N%)
+        ELSE
+          FOR T% = 1 TO N%
+            E% = E% + 1 * B%:B% = B% * 2
+          NEXT
+        ENDIF
+      ENDIF
       ENDPROC
