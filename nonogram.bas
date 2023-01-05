@@ -3,15 +3,29 @@
       S% = 20: PROCprepareData
 
       TIME = 0
-      REPEAT
-        PROCcreate
-        PROCsolve
-      UNTIL C%=0
+      iterations = 0
+
+      PROCcreate
+      PROCcreateRunLines
+      PROCsolve
+
+      IF C% > 0 THEN
+        FOR Y% = 1 TO S%
+          FOR X% = 1 TO S%
+            g%(X%, Y%) = s%(X%, Y%)
+            IF g%(X%, Y%) = 0 THEN g%(X%, Y%) = 2
+          NEXT
+        NEXT
+        PROCcreateRunLines
+        PROCsolve: REM It shouldn't be necessary to perform this step if this method makes them all solvable
+      ENDIF
+
       time = TIME
 
-      PROCtransfer: PROCdisplay
+      PROCtransfer: PROCdisplay: REM Note that the display function only prints single digits for runs (even if they go into double digits)
 
-      PRINT time/100;" seconds"
+      PRINT "Created in ";time/100;" seconds"
+      IF C% > 0 THEN PRINT "But not solvable"
 
       END
 
@@ -37,9 +51,9 @@
       REM Y% - row index
       REM Z% - line type (row=0, column=1)
 
-      REM a%() - perm$
+      REM a%() - all permutations of rows/columns
       REM g%() - grid
-      REM m%() - permutations
+      REM m%() - number of permutationsfor each row/column
       REM n%() - numLines
       REM p%() - gap
       REM r%() - runLines
@@ -68,6 +82,9 @@
 
       DEF PROCcreate
       FOR Y% = 1 TO S%:FOR X% = 1 TO S%:g%(X%, Y%) = RND(2):NEXT:NEXT
+      ENDPROC
+
+      DEF PROCcreateRunLines
       FOR Z% = 1 TO 2: FOR I% = 1 TO S%: PROCcreateLine: NEXT: NEXT
       ENDPROC
 
