@@ -1,6 +1,16 @@
 Const WHITE = _RGB32(255, 255, 255)
 Const GREY = _RGB32(127, 127, 127)
 
+Const TRUE = 1
+Const FALSE = 0
+
+Const UNKNOWN = 0
+Const EMPTY = 1
+Const FULL = 2
+
+Const ROW = 1
+Const COLUMN = 2
+
 ReDim Shared targetGrid%(0, 0)
 Rem All nonogram line data runLines(a,b,c) where a=1 or 2 (row or column), b=row/column index and c=nonogram run data
 ReDim Shared runs%(0, 0, 0)
@@ -15,41 +25,41 @@ ReDim Shared numPermutations%(0, 0)
 Rem Grid for solving in
 ReDim Shared activeGrid(0, 0)
 
-Dim Shared B%
-Dim Shared C%
-Dim Shared D%
-Dim Shared E%
-Dim Shared G%
-Dim Shared I%
-Dim Shared J%
-Dim Shared K%
-Dim Shared L%
-Dim Shared M%
-Dim Shared P%
-Dim Shared R%
-Dim Shared S%
-Dim Shared T%
-Dim Shared U%
-Dim Shared V%
-Dim Shared W%
-Dim Shared X%
-Dim Shared Y%
-Dim Shared Z%
+'Dim Shared B%
+'Dim Shared C%
+'Dim Shared D%
+'Dim Shared E%
+'Dim Shared G%
+'Dim Shared I%
+'Dim Shared J%
+'Dim Shared K%
+'Dim Shared L%
+'Dim Shared M%
+'Dim Shared P%
+'Dim Shared R%
+'Dim Shared S%
+'Dim Shared T%
+'Dim Shared U%
+'Dim Shared V%
+'Dim Shared W%
+'Dim Shared X%
+'Dim Shared Y%
+'Dim Shared Z%
+
+Dim Shared gridSize%
 
 Randomize Timer
 Screen _NewImage(1280, 960, 32)
 Cls
 
-S% = 15: Call prepareData
+gridSize% = 15: Call prepareData
 
-Do
-    Print "Creating"
+solved% = FALSE
+
+Do While solved% = FALSE
     Call create
-    Print "Creating run lines"
-    Call createRunLines
-    Print "Solving"
-    Call solve
-Loop Until C% = 0
+    solved = solve
+Loop
 
 Call display: Rem Note that the display function only prints single digits for runs (even if they go into double digits)
 
@@ -87,230 +97,236 @@ Rem s%() - play grid
 
 Sub prepareData
     Rem All cells in grid(,) can be 0 (unknown), 1 (empty) or 2 (full)
-    ReDim targetGrid%(S% + 1, S% + 1)
+    ReDim targetGrid%(gridSize% + 1, gridSize% + 1)
     Rem All nonogram line data runLines(a,b,c) where a=1 or 2 (row or column), b=row/column index and c=nonogram run data
-    ReDim runs%(2, S%, (S% + 1) / 2)
+    ReDim runs%(2, gridSize%, (gridSize% + 1) / 2)
     Rem Relates to r%(a,b,c) and stores number of entries for c
-    ReDim numRuns%(2, S%)
+    ReDim numRuns%(2, gridSize%)
     Rem Stores all possible gap permutations for a row or column
-    ReDim gaps%((S% + 1) / 2 + 1)
+    ReDim gaps%((gridSize% + 1) / 2 + 1)
     Rem Stores all possible m% for each row and column
-    ReDim permutations%(2, S%, 6000): Rem This will blow up if any row or column has more than 6000 m%
+    ReDim permutations%(2, gridSize%, 6000): Rem This will blow up if any row or column has more than 6000 m%
     Rem Permutation count for each row and column
-    ReDim numPermutations%(2, S%)
+    ReDim numPermutations%(2, gridSize%)
     Rem Grid for solving in
-    ReDim activeGrid(S%, S%)
+    ReDim activeGrid(gridSize%, gridSize%)
 End Sub
 
 Sub transfer
-    For Y% = 1 To S%
-        For X% = 1 To S%
+    For Y% = 1 To gridSize%
+        For X% = 1 To gridSize%
             targetGrid%(X%, Y%) = activeGrid(X%, Y%)
         Next
     Next
 End Sub
 
 Sub create
-    For Y% = 1 To S%
-        For X% = 1 To S%
-            targetGrid%(X%, Y%) = Int(Rnd * 2) + 1
+    For y% = 1 To gridSize%
+        For x% = 1 To gridSize%
+            targetGrid%(x%, y%) = Int(Rnd * 2) + 1
+        Next
+    Next
+    For z% = 1 To 2
+        For i% = 1 To gridSize%
+            Call createLine(i%, z%)
         Next
     Next
 End Sub
 
-Sub createRunLines
-    For Z% = 1 To 2
-        For I% = 1 To S%
-            Call createLine(I%, Z%)
-        Next
-    Next
-End Sub
-
-Sub createLine (I%, Z%)
-    If Z% = 1 Then X% = 1: Y% = I%: U% = 1: V% = 0 Else X% = I%: Y% = 1: U% = 0: V% = 1
-    L% = 1
+Sub createLine (index%, dir%)
+    Dim x%, y%, dx%, dy%, runIndex%, length%
+    If dir% = ROW Then x% = 1: y% = index%: dx% = 1: dy% = 0 Else x% = index%: y% = 1: dx% = 0: dy% = 1
+    runIndex% = 1
     Do
-        Do While X% <= S% And Y% <= S% And targetGrid%(X%, Y%) = 1
-            X% = X% + U%: Y% = Y% + V%
+        Do While x% <= gridSize% And y% <= gridSize% And targetGrid%(x%, y%) = 1
+            x% = x% + dx
+            y% = y% + dy%
         Loop
-        If X% <= S% And Y% <= S% Then
-            K% = 0
-            Do While X% <= S% And Y% <= S% And targetGrid%(X%, Y%) = 2
-                X% = X% + U%: Y% = Y% + V%
-                K% = K% + 1
+        If x% <= gridSize% And y% <= gridSize% Then
+            length% = 0
+            Do While x% <= gridSize% And y% <= gridSize% And targetGrid%(x%, y%) = 2
+                x% = x% + dx%
+                y% = y% + dy%
+                length% = length% + 1
             Loop
-            runs%(Z%, I%, L%) = K%
-            L% = L% + 1
+            runs%(dir%, index%, runIndex%) = length%
+            runIndex% = runIndex% + 1
         End If
-    Loop Until X% > S% Or Y% > S%
-    numRuns%(Z%, I%) = L% - 1
+    Loop Until x% > gridSize% Or y% > gridSize%
+    numRuns%(dir%, index%) = runIndex% - 1
 End Sub
 
 Sub display
+    Dim x%, y%, maxCount%, r$, textX%, yOffset%
     Cls
-
     Rem Determine longest run of integers for a column
-    L% = 0
-    For X% = 1 To S%
-        If numRuns%(2, X%) > L% Then L% = numRuns%(2, X%)
+    maxCount% = 0
+    For x% = 1 To gridSize%
+        If numRuns%(COLUMN, x%) > maxCount% Then maxCount% = numRuns%(COLUMN, x%)
     Next
-
-    Rem Display the vertically justified numbers
-    For X% = 1 To S%
-        For Y% = 1 To numRuns%(2, X%)
-            Locate Y% + L% + 2 - numRuns%(2, X%), X% * 4 + 2
-            r$ = Str$(runs%(2, X%, Y%))
+    Rem Display the column run numbers
+    For x% = 1 To gridSize%
+        For y% = 1 To numRuns%(COLUMN, x%)
+            Locate y% + maxCount% + 2 - numRuns%(COLUMN, x%), x% * 4 + 2
+            r$ = Str$(runs%(COLUMN, x%, y%))
             r$ = Right$(r$, Len(r$) - 1)
             If Len(r$) < 2 Then r$ = " " + r$
             Print r$
         Next
     Next
-
     Rem Display the row run numbers
-    For Y% = 1 To S%
-        tx% = 1
-        For X% = 1 To numRuns%(1, Y%)
-            Locate L% + Y% * 2 + 2, S% * 4 + tx% + 5
-            r$ = Str$(runs%(1, Y%, X%))
+    For y% = 1 To gridSize%
+        textX% = 1
+        For x% = 1 To numRuns%(ROW, y%)
+            Locate maxCount% + y% * 2 + 2, gridSize% * 4 + textX% + 5
+            r$ = Str$(runs%(ROW, y%, x%))
             r$ = Right$(r$, Len(r$) - 1)
             Print r$
-            tx% = tx% + Len(r$) + 1
+            textX% = textX% + Len(r$) + 1
         Next
     Next
-
-    For Y% = 1 To S%
-        For X% = 1 To S%
-            If activeGrid(X%, Y%) = 2 Then Line (X% * 32, Y% * 32 + 16 * L% + 4)-(X% * 32 + 32, Y% * 32 + 32 + 16 * L% + 4), WHITE, BF
-            Line (X% * 32, Y% * 32 + 16 * L% + 4)-(X% * 32 + 32, Y% * 32 + 32 + 16 * L% + 4), GREY, B
+    yOffset% = 16 * maxCount% + 4
+    For y% = 1 To gridSize%
+        For x% = 1 To gridSize%
+            If activeGrid(x%, y%) = 2 Then Line (x% * 32, y% * 32 + yOffset%)-(x% * 32 + 32, y% * 32 + 32 + yOffset%), WHITE, BF
+            Line (x% * 32, y% * 32 + yOffset%)-(x% * 32 + 32, y% * 32 + 32 + yOffset%), GREY, B
         Next
     Next
-
 End Sub
 
-Sub solve
-    For Y% = 1 To S%
-        For X% = 1 To S%
-            activeGrid(X%, Y%) = 0
+Function solve
+    Dim x%, y%, dir%, i%, solvable%
+    For y% = 1 To gridSize%
+        For x% = 1 To gridSize%
+            activeGrid(x%, y%) = UNKNOWN
         Next
     Next
-    For Z% = 1 To 2
-        For I% = 1 To S%
-            Call getGapPermutations(I%, Z%)
+    For dir% = 1 To 2
+        For i% = 1 To gridSize%
+            Call getGapPermutations(i%, dir%)
         Next
     Next
-    C% = S% * S%
+    unfilledCount% = gridSize% * gridSize%
     Do
-        Call scan
-    Loop Until C% = 0 Or D% = 0
+        Call scan(solvable%, unfilledCount%)
+    Loop Until unfilledCount% = 0 Or solvable% = FALSE
+    If unfilledCount% = 0 Then solve = TRUE Else solve = FALSE
+End Function
+
+Sub scan (solvable%, unfilledCount%)
+    Dim solvableLine%
+    solvable% = FALSE
+    soilvableLine% = FALSE
+    Call setCommonalities(ROW, soilvableLine%, unfilledCount%)
+    If soilvableLine% = TRUE Then solvable% = TRUE: Call removeNonMatchingLines(COLUMN)
+    solvableLine% = FALSE
+    Call setCommonalities(COLUMN, soilvableLine%, unfilledCount%)
+    If soilvableLine% = TRUE Then solvable% = TRUE: Call removeNonMatchingLines(ROW)
 End Sub
 
-Sub scan
-    doable% = 0
-    D% = 0
-    Call setCommonalities(1)
-    If D% = 1 Then doable% = 1: Call removeNonMatchingLines(2)
-    D% = 0
-    Call setCommonalities(2)
-    If D% = 1 Then doable% = 1: Call removeNonMatchingLines(1)
-    D% = doable%
-End Sub
-
-Sub setCommonalities (Z%)
-    For I% = 1 To S%
-        If Z% = 1 Then X% = 1: Y% = I%: U% = 1: V% = 0 Else X% = I%: Y% = 1: U% = 0: V% = 1
-        B% = 1
-        For K% = 1 To S%
-            If activeGrid(X%, Y%) = 0 Then
-                R% = 1
-                E% = permutations%(Z%, I%, 1) And B%
-                J% = 2
-                Do While J% <= numPermutations%(Z%, I%) And R% = 1
-                    If (((E% > 0) <> ((permutations%(Z%, I%, J%) And B%) > 0))) Then R% = 0
-                    J% = J% + 1
+Sub setCommonalities (dir%, solvableLine%, unfilledCount%)
+    Dim valid%, i%, k%, j%, x%, y%, dx%, dy%, bitValue%, bitMask%
+    For i% = 1 To gridSize%
+        If dir% = ROW Then x% = 1: y% = i%: dx% = 1: dy% = 0 Else x% = i%: y% = 1: dx% = 0: dy% = 1
+        bitMask% = 1
+        For k% = 1 To gridSize%
+            If activeGrid(x%, y%) = UNKNOWN Then
+                valid% = TRUE
+                bitValue% = permutations%(dir%, i%, 1) And bitMask%
+                j% = 2
+                Do While j% <= numPermutations%(dir%, i%) And valid% = TRUE
+                    If (((bitValue% > 0) <> ((permutations%(dir%, i%, j%) And bitMask%) > 0))) Then valid% = FALSE
+                    j% = j% + 1
                 Loop
-                If R% = 1 Then
-                    If E% > 0 Then E% = 1
-                    activeGrid(X%, Y%) = E% + 1
-                    D% = 1: C% = C% - 1
+                If valid% = TRUE Then
+                    If bitValue% > 0 Then bitValue% = 1
+                    activeGrid(x%, y%) = bitValue% + 1
+                    solvableLine% = TRUE
+                    unfilledCount% = unfilledCount% - 1
                 End If
             End If
-            B% = B% * 2
-            X% = X% + U%: Y% = Y% + V%
+            bitMask% = bitMask% * 2
+            x% = x% + dx%: y% = y% + dy%
         Next
     Next
 End Sub
 
-Sub removeNonMatchingLines (Z%)
-    For I% = 1 To S%
-        If Z% = 1 Then X% = 1: Y% = I%: U% = 1: V% = 0 Else X% = I%: Y% = 1: U% = 0: V% = 1
-        B% = 1
-        For K% = 1 To S%
-            E% = activeGrid(X%, Y%)
-            If E% > 0 Then
-                J% = numPermutations%(Z%, I%)
-                Do While J% > 0
-                    If (((E% > 1) <> ((permutations%(Z%, I%, J%) And B%) > 0))) Then permutations%(Z%, I%, J%) = -1
-                    J% = J% - 1
+Sub removeNonMatchingLines (dir%)
+    Dim i%, k%, j%, x%, y%, dx%, dy%, bitValue%, bitMask%
+    For i% = 1 To gridSize%
+        If dir% = ROW Then x% = 1: y% = i%: dx% = 1: dy% = 0 Else x% = i%: y% = 1: dx% = 0: dy% = 1
+        bitMask% = 1
+        For k% = 1 To gridSize%
+            bitValue% = activeGrid(x%, y%)
+            If bitValue% > 0 Then
+                j% = numPermutations%(dir%, i%)
+                Do While j% > 0
+                    If (((bitValue% > 1) <> ((permutations%(dir%, i%, j%) And bitMask%) > 0))) Then permutations%(dir%, i%, j%) = -1
+                    j% = j% - 1
                 Loop
             End If
-            B% = B% * 2
-            X% = X% + U%: Y% = Y% + V%
+            bitMask% = bitMask% * 2
+            x% = x% + dx%: y% = y% + dy%
         Next
     Next
-    Call removeNullStrings(Z%)
+    Call removeNullStrings(dir%)
 End Sub
 
-Sub removeNullStrings (Z%)
-    For I% = 1 To S%
-        K% = 0
-        For J% = 1 To numPermutations%(Z%, I%)
-            If permutations%(Z%, I%, J%) = -1 Then K% = K% + 1 Else If K% > 0 Then permutations%(Z%, I%, J% - K%) = permutations%(Z%, I%, J%)
+Sub removeNullStrings (dir%)
+    Dim i%, k%, j%
+    For i% = 1 To gridSize%
+        k% = 0
+        For j% = 1 To numPermutations%(dir%, i%)
+            If permutations%(dir%, i%, j%) = -1 Then k% = k% + 1 Else If k% > 0 Then permutations%(dir%, i%, j% - k%) = permutations%(dir%, i%, j%)
         Next
-        numPermutations%(Z%, I%) = numPermutations%(Z%, I%) - K%
+        numPermutations%(dir%, i%) = numPermutations%(dir%, i%) - k%
     Next
 End Sub
 
-Sub getGapPermutations (I%, Z%)
-    G% = numRuns%(Z%, I%) + 1
-    For J% = 1 To G%
-        gaps%(J%) = 0
+Sub getGapPermutations (i%, dir%)
+    Dim gapCount%, j%, k%, l%, p%
+    gapCount% = numRuns%(dir%, i%) + 1
+    For j% = 1 To gapCount%
+        gaps%(j%) = 0
     Next
-    K% = S%
-    If G% > 1 Then For J% = 1 To G% - 1: K% = K% - runs%(Z%, I%, J%): Next
-    If G% > 2 Then K% = K% - (G% - 2)
-    L% = 0
-    P% = 0
+    k% = gridSize%
+    If gapCount% > 1 Then For j% = 1 To gapCount% - 1: k% = k% - runs%(dir%, i%, j%): Next
+    If gapCount% > 2 Then k% = k% - (gapCount% - 2)
+    l% = 0
+    p% = 0
     Do
-        gaps%(G%) = K% - L%
-        Call addPermutation
-        J% = 0
+        gaps%(gapCount%) = k% - l%
+        Call addPermutation(gapCount%, p%, l%)
+        j% = 0
         Do
-            J% = J% + 1
-            gaps%(J%) = gaps%(J%) + 1
-            L% = L% + 1
-            If L% > K% Then L% = L% - gaps%(J%): gaps%(J%) = 0
-        Loop Until J% = G% Or gaps%(J%) <> 0
-    Loop Until J% = G%
-    numPermutations%(Z%, I%) = P%
+            j% = j% + 1
+            gaps%(j%) = gaps%(j%) + 1
+            l% = l% + 1
+            If l% > k% Then l% = l% - gaps%(j%): gaps%(j%) = 0
+        Loop Until j% = gapCount% Or gaps%(j%) <> 0
+    Loop Until j% = gapCount%
+    numPermutations%(dir%, i%) = p%
 End Sub
 
-Sub addPermutation
-    P% = P% + 1
-    E% = 0: B% = 1
-    Call repeatByte(0, gaps%(1))
-    If G% > 1 Then Call repeatByte(1, runs%(Z%, I%, 1))
-    If G% > 2 Then For W% = 2 To G% - 1: Call repeatByte(0, gaps%(W%) + 1): Call repeatByte(1, runs%(Z%, I%, W%)): Next
-    Call repeatByte(0, gaps%(G%))
-    permutations%(Z%, I%, P%) = E%
+Sub addPermutation (gapCount%, p%, l%)
+    Dim e%, b%, w%
+    p% = p% + 1
+    e% = 0: b% = 1
+    Call repeatByte(0, gaps%(1), b%, e%)
+    If gapCount% > 1 Then Call repeatByte(1, runs%(dir%, I%, 1), b%, e%)
+    If gapCount% > 2 Then For w% = 2 To gapCount% - 1: Call repeatByte(0, gaps%(w%) + 1, b%, e%): Call repeatByte(1, runs%(dir%, I%, w%), b%, e%): Next
+    Call repeatByte(0, gaps%(gapCount%), b%, e%)
+    permutations%(dir%, I%, p%) = e%
 End Sub
 
-Sub repeatByte (byte%, num%)
+Sub repeatByte (byte%, num%, b%, e%)
+    Dim t%
     If num% > 0 Then
         If byte% = 0 Then
-            B% = B% * (2 ^ num%)
+            b% = b% * (2 ^ num%)
         Else
-            For T% = 1 To num%
-                E% = E% + 1 * B%: B% = B% * 2
+            For t% = 1 To num%
+                e% = e% + 1 * b%: b% = b% * 2
             Next
         End If
     End If
