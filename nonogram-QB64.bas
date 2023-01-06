@@ -1,5 +1,5 @@
-$Debug
-Rem      HIMEM=LOMEM+&800000
+Const WHITE = _RGB32(255, 255, 255)
+Const GREY = _RGB32(127, 127, 127)
 
 ReDim Shared g%(0, 0)
 Rem All nonogram line data runLines(a,b,c) where a=1 or 2 (row or column), b=row/column index and c=nonogram run data
@@ -15,7 +15,7 @@ ReDim Shared m%(0, 0)
 Rem Grid for solving in
 ReDim Shared s%(0, 0)
 
-Dim Shared b%
+Dim Shared B%
 Dim Shared C%
 Dim Shared D%
 Dim Shared E%
@@ -25,7 +25,6 @@ Dim Shared J%
 Dim Shared K%
 Dim Shared L%
 Dim Shared M%
-Dim Shared O%
 Dim Shared P%
 Dim Shared R%
 Dim Shared S%
@@ -37,29 +36,43 @@ Dim Shared X%
 Dim Shared Y%
 Dim Shared Z%
 
-S% = 20: Call prepareData
+Randomize Timer
+Screen _NewImage(1280, 960, 32)
+Cls
 
-TIME = 0
+S% = 10: Call prepareData
+
+TIME = Timer
 iterations = 0
 
+Print "Creating"
 Call create
+Print "Creating run lines"
 Call createRunLines
+Print "Solving"
 Call solve
 
 If C% > 0 Then
+    Print "Hiccup"
     For Y% = 1 To S%
         For X% = 1 To S%
             g%(X%, Y%) = s%(X%, Y%)
-            If g%(X%, Y%) = 0 Then g%(X%, Y%) = 2
+            If g%(X%, Y%) = 0 Then
+                g%(X%, Y%) = 2
+            End If
         Next
     Next
+    Print "Creating run lines"
     Call createRunLines
+    Print "Solving"
     Call solve: Rem It shouldn't be necessary to perform this step if this method makes them all solvable
 End If
 
-TIME = TIME
+Print "solved"
 
-Call transfer: Call display: Rem Note that the display function only prints single digits for runs (even if they go into double digits)
+TIME = Timer - TIME
+
+Call display: Rem Note that the display function only prints single digits for runs (even if they go into double digits)
 
 Print "Created in "; TIME / 100; " seconds"
 If C% > 0 Then Print "But not solvable"
@@ -131,7 +144,7 @@ End Sub
 
 Sub createRunLines
     For Z% = 1 To 2
-        For I% = 1 To S
+        For I% = 1 To S%
             Call createLine(I%, Z%)
         Next
     Next
@@ -158,32 +171,30 @@ Sub createLine (I%, Z%)
 End Sub
 
 Sub display
+    Cls
+
+    Rem Determine longest run of integers for a column
     L% = 0
     For X% = 1 To S%
         If n%(2, X%) > L% Then L% = n%(2, X%)
     Next
+    Rem Display the vertically justified numbers
     For J% = L% To 1 Step -1
         For X% = 1 To S%
             If n%(2, X%) >= J% Then Print "  "; Right$(Str$(r%(2, X%, n%(2, X%) + 1 - J%)), 1); " "; Else Print "    ";
         Next
         Print
     Next
+
     For Y% = 1 To S%
         For X% = 1 To S%
-            Print "+---";
+            If s%(X%, Y%) = 2 Then Line (X% * 32, Y% * 32)-(X% * 32 + 32, Y% * 32 + 32), WHITE, BF
+            Line (X% * 32, Y% * 32)-(X% * 32 + 32, Y% * 32 + 32), GREY, B
         Next
-        Print "+"
-        For X% = 1 To S%
-            If g%(X%, Y%) = 2 Then Print "| * "; Else If g%(X%, Y%) = 1 Then Print "|   "; Else Print "| ? ";
-        Next
-        Print "|";
-        If n%(1, Y%) > 0 Then For J% = 1 To n%(1, Y%): Print " "; Right$(Str$(r%(1, Y%, J%)), 1);: Next
-        Print
+        Rem         If n%(1, Y%) > 0 Then For J% = 1 To n%(1, Y%): Print " "; Right$(Str$(r%(1, Y%, J%)), 1);: Next
+        Rem     Print
     Next
-    For X% = 1 To S%
-        Print "+---";
-    Next
-    Print "+"
+
 End Sub
 
 Sub solve
@@ -204,24 +215,27 @@ Sub solve
 End Sub
 
 Sub scan
+    doable% = 0
     D% = 0
     Call setCommonalities(1)
-    If D% = 1 Then Call removeNonMatchingLines(2)
+    If D% = 1 Then doable% = 1: Call removeNonMatchingLines(2)
+    D% = 0
     Call setCommonalities(2)
-    If D% = 1 Then Call removeNonMatchingLines(1)
+    If D% = 1 Then doable% = 1: Call removeNonMatchingLines(1)
+    D% = doable%
 End Sub
 
 Sub setCommonalities (Z%)
     For I% = 1 To S%
         If Z% = 1 Then X% = 1: Y% = I%: U% = 1: V% = 0 Else X% = I%: Y% = 1: U% = 0: V% = 1
-        b% = 1
+        B% = 1
         For K% = 1 To S%
             If s%(X%, Y%) = 0 Then
                 R% = 1
-                E% = a%(Z%, I%, 1) And b%
+                E% = a%(Z%, I%, 1) And B%
                 J% = 2
                 Do While J% <= m%(Z%, I%) And R% = 1
-                    If (((E% > 0) <> ((a%(Z%, I%, J%) And b%) > 0))) Then R% = 0
+                    If (((E% > 0) <> ((a%(Z%, I%, J%) And B%) > 0))) Then R% = 0
                     J% = J% + 1
                 Loop
                 If R% = 1 Then
@@ -230,7 +244,7 @@ Sub setCommonalities (Z%)
                     D% = 1: C% = C% - 1
                 End If
             End If
-            b% = b% * 2
+            B% = B% * 2
             X% = X% + U%: Y% = Y% + V%
         Next
     Next
@@ -239,17 +253,17 @@ End Sub
 Sub removeNonMatchingLines (Z%)
     For I% = 1 To S%
         If Z% = 1 Then X% = 1: Y% = I%: U% = 1: V% = 0 Else X% = I%: Y% = 1: U% = 0: V% = 1
-        b% = 1
+        B% = 1
         For K% = 1 To S%
             E% = s%(X%, Y%)
             If E% > 0 Then
                 J% = m%(Z%, I%)
-                Do While J% > 0 And a%(Z%, I%, J%) <> -1
-                    If (((E% > 1) <> ((a%(Z%, I%, J%) And b%) > 0))) Then a%(Z%, I%, J%) = -1
+                Do While J% > 0
+                    If (((E% > 1) <> ((a%(Z%, I%, J%) And B%) > 0))) Then a%(Z%, I%, J%) = -1
                     J% = J% - 1
                 Loop
             End If
-            b% = b% * 2
+            B% = B% * 2
             X% = X% + U%: Y% = Y% + V%
         Next
     Next
@@ -292,21 +306,21 @@ End Sub
 
 Sub addPermutation
     P% = P% + 1
-    E% = 0: b% = 1
-    n% = p%(1): Call repeatByte
-    If G% > 1 Then n% = r%(Z%, I%, 1): O% = 1: Call repeatByte
-    If G% > 2 Then For W% = 2 To G% - 1: n% = p%(W%) + 1: O% = 0: Call repeatByte: n% = r%(Z%, I%, W%): O% = 1: Call repeatByte: Next
-    n% = p%(G%): O% = 0: Call repeatByte
+    E% = 0: B% = 1
+    Call repeatByte(0, p%(1))
+    If G% > 1 Then Call repeatByte(1, r%(Z%, I%, 1))
+    If G% > 2 Then For W% = 2 To G% - 1: Call repeatByte(0, p%(W%) + 1): Call repeatByte(1, r%(Z%, I%, W%)): Next
+    Call repeatByte(0, p%(G%))
     a%(Z%, I%, P%) = E%
 End Sub
 
-Sub repeatByte
-    If n% > 0 Then
-        If O% = 0 Then
-            b% = b% * (2 ^ n%)
+Sub repeatByte (byte%, num%)
+    If num% > 0 Then
+        If byte% = 0 Then
+            B% = B% * (2 ^ num%)
         Else
-            For T% = 1 To n%
-                E% = E% + 1 * b%: b% = b% * 2
+            For T% = 1 To num%
+                E% = E% + 1 * B%: B% = B% * 2
             Next
         End If
     End If
