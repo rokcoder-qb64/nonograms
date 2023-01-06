@@ -6,6 +6,7 @@ REM _ScreenMove _Middle
 CONST WHITE = _RGB32(255, 255, 255)
 CONST GREY = _RGB32(127, 127, 127)
 CONST GREEN = _RGB32(0, 255, 0)
+CONST BLACK = _RGB32(0, 0, 0)
 
 CONST TRUE = 1
 CONST FALSE = 0
@@ -55,16 +56,44 @@ LOOP UNTIL TRUE = FALSE
 END
 
 SUB updateMouse (xOffset%, yOffset%)
-    STATIC x%, y%
+    STATIC x%, y%, lastX%, lastY%, colour&, buttonState%
     DO WHILE _MOUSEINPUT
         x% = (_MOUSEX - 16 - xOffset%) / 32
         y% = (_MOUSEY - 16 - yOffset%) / 32
+
+        d& = _DEVICEINPUT
+        IF d& THEN
+            IF _BUTTONCHANGE(1) = 1 THEN
+                buttonState% = 0
+            ELSE
+                IF _BUTTONCHANGE(1) = -1 THEN
+                    IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN buttonState% = 3 - activeGrid%(x%, y%) ELSE buttonState% = 0
+                END IF
+            END IF
+        END IF
+
     LOOP
-    LOCATE 20, 1
-    PRINT ; x%; ", "; y%; "       "
-    IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
-        LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), GREEN, BF
+
+    LOCATE 1, 1
+    PRINT buttonState%
+
+    REM IF x% <> lastX% OR y% <> lastY% THEN
+    IF lastX% > 0 AND lastY% > 0 AND lastX% <= gridSize% AND lastY% <= gridSize% THEN
+        IF activeGrid%(lastX%, lastY%) = 2 THEN colour& = WHITE ELSE colour& = BLACK
+        LINE (lastX% * 32 + xOffset%, lastY% * 32 + yOffset%)-(lastX% * 32 + 32 + xOffset%, lastY% * 32 + 32 + yOffset%), colour&, BF
+        LINE (lastX% * 32 + xOffset%, lastY% * 32 + yOffset%)-(lastX% * 32 + 32 + xOffset%, lastY% * 32 + 32 + yOffset%), GREY, B
     END IF
+    IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
+        IF buttonState% > 0 THEN activeGrid%(x%, y%) = buttonState%
+        IF activeGrid%(x%, y%) = 2 THEN colour& = WHITE ELSE colour& = BLACK
+        LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), GREY, BF
+        LINE (x% * 32 + 8 + xOffset%, y% * 32 + 8 + yOffset%)-(x% * 32 - 8 + 32 + xOffset%, y% * 32 - 8 + 32 + yOffset%), colour&, BF
+    ELSE
+        buttonState% = 0
+    END IF
+    lastX% = x%
+    lastY% = y%
+    REM END IF
 END SUB
 
 SUB prepareData
