@@ -62,38 +62,7 @@ Do While solved% = FALSE
 Loop
 
 Call display: Rem Note that the display function only prints single digits for runs (even if they go into double digits)
-
 End
-
-Rem B% - rolling 2^ bit value
-Rem C% - solve counter
-Rem D% - boolean of whether row/column is solvable
-Rem E% - bit value
-Rem G% - gap count
-Rem I% - index
-Rem J% - index
-Rem K% - counter
-Rem L% - counter
-Rem N% - counter
-Rem O% - temp var
-Rem P% - permutation counter
-Rem R% - valid (boolean)
-Rem S% - gridWidth/gridHeight
-Rem T% - temp var
-Rem U% - delta x
-Rem V% - delta y
-Rem W% - temp var
-Rem X% - column index
-Rem Y% - row index
-Rem Z% - line type (row=0, column=1)
-
-Rem a%() - all permutations of rows/columns
-Rem g%() - grid
-Rem m%() - number of permutationsfor each row/column
-Rem n%() - numLines
-Rem p%() - gap
-Rem r%() - runLines
-Rem s%() - play grid
 
 Sub prepareData
     Rem All cells in grid(,) can be 0 (unknown), 1 (empty) or 2 (full)
