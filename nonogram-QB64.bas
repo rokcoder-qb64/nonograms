@@ -7,6 +7,7 @@ CONST WHITE = _RGB32(255, 255, 255)
 CONST GREY = _RGB32(127, 127, 127)
 CONST GREEN = _RGB32(0, 255, 0)
 CONST BLACK = _RGB32(0, 0, 0)
+CONST DARKGREY = _RGB32(64, 64, 64)
 
 CONST TRUE = 1
 CONST FALSE = 0
@@ -37,7 +38,7 @@ DIM SHARED gridSize%, solved%, xOffset%, yOffset%
 RANDOMIZE TIMER
 CLS
 
-gridSize% = 20: CALL prepareData
+gridSize% = 10: CALL prepareData
 
 solved% = FALSE
 
@@ -46,6 +47,7 @@ DO WHILE solved% = FALSE
     solved% = solve%
 LOOP
 
+resetGrid
 CALL display(xOffset%, yOffset%)
 
 DO
@@ -65,27 +67,37 @@ SUB updateMouse (xOffset%, yOffset%)
         IF d& THEN
             IF _BUTTONCHANGE(1) = 1 THEN
                 buttonState% = 0
-            ELSE
-                IF _BUTTONCHANGE(1) = -1 THEN
-                    IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN buttonState% = 3 - activeGrid%(x%, y%) ELSE buttonState% = 0
+            ELSEIF _BUTTONCHANGE(1) = -1 THEN
+                IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
+                    IF activeGrid%(x%, y%) <> FULL THEN buttonState% = FULL ELSE buttonState% = EMPTY
                 END IF
             END IF
         END IF
-
     LOOP
 
     LOCATE 1, 1
     PRINT buttonState%
 
-    REM IF x% <> lastX% OR y% <> lastY% THEN
     IF lastX% > 0 AND lastY% > 0 AND lastX% <= gridSize% AND lastY% <= gridSize% THEN
-        IF activeGrid%(lastX%, lastY%) = 2 THEN colour& = WHITE ELSE colour& = BLACK
+        IF activeGrid%(lastX%, lastY%) = 2 THEN
+            colour& = WHITE
+        ELSEIF activeGrid%(lastX%, lastY%) = 0 THEN
+            colour& = DARKGREY
+        ELSE
+            colour& = BLACK
+        END IF
         LINE (lastX% * 32 + xOffset%, lastY% * 32 + yOffset%)-(lastX% * 32 + 32 + xOffset%, lastY% * 32 + 32 + yOffset%), colour&, BF
         LINE (lastX% * 32 + xOffset%, lastY% * 32 + yOffset%)-(lastX% * 32 + 32 + xOffset%, lastY% * 32 + 32 + yOffset%), GREY, B
     END IF
     IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
         IF buttonState% > 0 THEN activeGrid%(x%, y%) = buttonState%
-        IF activeGrid%(x%, y%) = 2 THEN colour& = WHITE ELSE colour& = BLACK
+        IF activeGrid%(x%, y%) = 2 THEN
+            colour& = WHITE
+        ELSEIF activeGrid%(x%, y%) = 0 THEN
+            colour& = DARKGREY
+        ELSE
+            colour& = BLACK
+        END IF
         LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), GREY, BF
         LINE (x% * 32 + 8 + xOffset%, y% * 32 + 8 + yOffset%)-(x% * 32 - 8 + 32 + xOffset%, y% * 32 - 8 + 32 + yOffset%), colour&, BF
     ELSE
@@ -113,15 +125,17 @@ SUB prepareData
     REDIM activeGrid%(gridSize%, gridSize%)
 END SUB
 
-SUB transfer
-    FOR Y% = 1 TO gridSize%
-        FOR X% = 1 TO gridSize%
-            targetGrid%(X%, Y%) = activeGrid%(X%, Y%)
+SUB resetGrid
+    DIM x%, y%
+    FOR y% = 1 TO gridSize%
+        FOR x% = 1 TO gridSize%
+            activeGrid%(x%, y%) = UNKNOWN
         NEXT
     NEXT
 END SUB
 
 SUB create
+    DIM x%, y%, z%, i%
     FOR y% = 1 TO gridSize%
         FOR x% = 1 TO gridSize%
             targetGrid%(x%, y%) = INT(RND * 2) + 1
@@ -201,7 +215,11 @@ SUB display (xOffset%, yOffset%)
     yOffset% = 16 * maxCountY% + 6
     FOR y% = 1 TO gridSize%
         FOR x% = 1 TO gridSize%
-            IF activeGrid%(x%, y%) = 2 THEN LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), WHITE, BF
+            IF activeGrid%(x%, y%) = 2 THEN
+                LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), WHITE, BF
+            ELSEIF activeGrid%(x%, y%) = 0 THEN
+                LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), DARKGREY, BF
+            END IF
             LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), GREY, B
         NEXT
     NEXT
