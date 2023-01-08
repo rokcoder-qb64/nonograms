@@ -1,5 +1,4 @@
-# basic
-BASIC programs (not specifically for BBC Micro)
+# nonograms
+Nonograms - Written in QB64 (Phoenix Edition)
 
-*nonogram.bas* (WIP)
-A cross-platform BASIC program to create nonograms and verify they are solvable. By definition, this can also solve nonograms.
+My first project using QB64 (having only used APPLE II BASIC and BBC BASIC up to this point (and that was many decades ago)
