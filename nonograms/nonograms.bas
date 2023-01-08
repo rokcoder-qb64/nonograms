@@ -3,7 +3,6 @@ REM ----------------------------------------------------------------------------
 SCREEN _NEWIMAGE(1280, 960, 32)
 DO: _LIMIT 10: LOOP UNTIL _SCREENEXISTS
 _TITLE "Nonograms"
-REM _ScreenMove _Middle
 
 REM ----- Initialise constants ------------------------------------------------------------------------------------------------------
 
@@ -34,6 +33,7 @@ TYPE BUTTON
     h AS INTEGER
     group AS INTEGER
     pressed AS INTEGER
+    active AS INTEGER
 END TYPE
 
 REDIM SHARED buttons(0) AS BUTTON
@@ -74,13 +74,14 @@ DIM buttonNormal AS INTEGER
 DIM buttonHard AS INTEGER
 DIM buttonPlay AS INTEGER
 
-DIM SHARED titlePageImage&, gameImage&, zimmer&, click&, tick&
+DIM SHARED titlePageImage&, gameImage&, zimmer&, click&, tick&, congrats&
 DIM buttonBorderImage&, playButtonBorderImage&
 
 titlePageImage& = _LOADIMAGE("assets/nonograms.png", 32)
 buttonBorderImage& = _LOADIMAGE("assets/button border.png", 32)
 playButtonBorderImage& = _LOADIMAGE("assets/play border.png", 32)
 gameImage& = _LOADIMAGE("assets/game.png", 32)
+congrats& = _LOADIMAGE("assets/congrats.png", 32)
 
 zimmer& = _SNDOPEN("assets/hans zimmer - time.ogg")
 click& = _SNDOPEN("assets/click.ogg")
@@ -94,7 +95,11 @@ button20x20 = setButton%(1, "button 20x20.png", buttonBorderImage&, 962, 300)
 buttonEasy = setButton%(2, "button easy.png", buttonBorderImage&, 172, 510)
 buttonNormal = setButton%(2, "button normal.png", buttonBorderImage&, 488, 510)
 buttonHard = setButton%(2, "button hard.png", buttonBorderImage&, 804, 510)
-buttonPlay = setButton%(-1, "button play.png", playButtonBorderImage&, 340, 810): REM Needs a different border
+buttonPlay = setButton%(-1, "button play.png", playButtonBorderImage&, 340, 810)
+buttonContinue = setButton%(-1, "continue.png", playButtonBorderImage&, 340, 810)
+
+CALL pressButton(button10x10)
+CALL pressButton(buttonNormal)
 
 DO
     _PUTIMAGE (0, 0), titlePageImage&
@@ -108,8 +113,7 @@ DO
     CALL drawButton(buttonHard)
     CALL drawButton(buttonPlay)
 
-    CALL pressButton(button10x10)
-    CALL pressButton(buttonNormal)
+    waitForNoButton
 
     DO: _LIMIT 30
         CALL updateButtons
@@ -118,6 +122,8 @@ DO
 
     IF buttons(button5x5).pressed = TRUE THEN s% = 5 ELSE IF buttons(button10x10).pressed = TRUE THEN s% = 10 ELSE IF buttons(button15x15).pressed = TRUE THEN s% = 15 ELSE s% = 20
     IF buttons(buttonEasy).pressed = TRUE THEN d! = 0.2 ELSE IF buttons(buttonNormal).pressed = TRUE THEN d! = 0.35 ELSE d! = 0.5
+
+    CALL removeButtons
 
     CALL prepareData(s%)
     CALL createNonogram(d!)
@@ -129,7 +135,25 @@ DO
         _DISPLAY
         complete% = checkForCompletion%
     LOOP UNTIL complete% = TRUE
+
+    CALL display(xOffset%, yOffset%)
+    _PUTIMAGE (32, 32), congrats&
+    CALL drawButton(buttonContinue)
+    waitForNoButton
+    DO: _LIMIT 30
+        CALL updateButtons
+        _DISPLAY
+    LOOP UNTIL buttons(buttonContinue).pressed = TRUE
+
+    removeButtons
 LOOP
+
+SUB removeButtons
+    DIM i%
+    FOR i% = 1 TO UBOUND(buttons)
+        buttons(i%).active = FALSE
+    NEXT
+END SUB
 
 FUNCTION setButton% (group%, name$, border&, x%, y%)
     DIM id%
@@ -145,7 +169,7 @@ FUNCTION setButton% (group%, name$, border&, x%, y%)
     buttons(id%).h = _HEIGHT(buttons(id%).imageHandle)
     buttons(id%).group = group%
     buttons(id%).pressed = FALSE
-    CALL drawButton(id%)
+    buttons(id%).active% = FALSE
     setButton% = id%
 END FUNCTION
 
@@ -154,9 +178,20 @@ SUB freeButton (buttonId%)
 END SUB
 
 SUB drawButton (buttonId%)
+    buttons(buttonId%).active = TRUE
     _PUTIMAGE (buttons(buttonId%).x, buttons(buttonId%).y), buttons(buttonId%).imageHandle
     LINE (buttons(buttonId%).x + 10, buttons(buttonId%).y + 10)-(buttons(buttonId%).x + buttons(buttonId%).w - 10, buttons(buttonId%).y + buttons(buttonId%).h - 10), _RGBA32(0, 0, 0, buttons(buttonId%).currentAlpha), BF
     _PUTIMAGE (buttons(buttonId%).x, buttons(buttonId%).y), buttons(buttonId%).borderHandle
+END SUB
+
+SUB waitForNoButton
+    DIM pressed%
+    pressed% = TRUE
+    DO
+        DO WHILE _MOUSEINPUT
+        LOOP
+        pressed% = _MOUSEBUTTON(1)
+    LOOP UNTIL pressed% = FALSE
 END SUB
 
 SUB updateButtons
@@ -164,8 +199,6 @@ SUB updateButtons
     DIM i%, j%, pressed%, deltaSgn%, delta%
     pressed% = FALSE
     DO WHILE _MOUSEINPUT
-        mouseX% = _MOUSEX
-        mouseY% = _MOUSEY
         d& = _DEVICEINPUT
         IF d& THEN
             IF _BUTTONCHANGE(1) = -1 THEN
@@ -173,27 +206,33 @@ SUB updateButtons
             END IF
         END IF
     LOOP
+    mouseX% = _MOUSEX
+    mouseY% = _MOUSEY
     FOR i% = 1 TO UBOUND(buttons)
-        IF mouseX% > buttons(i%).x AND mouseX% < buttons(i%).x + buttons(i%).w AND mouseY% > buttons(i%).y AND mouseY% < buttons(i%).y + buttons(i%).h THEN
-            IF buttons(i%).group = -1 THEN
-                buttons(i%).targetAlpha = 0
+        IF buttons(i%).active = TRUE THEN
+            IF mouseX% > buttons(i%).x AND mouseX% < buttons(i%).x + buttons(i%).w AND mouseY% > buttons(i%).y AND mouseY% < buttons(i%).y + buttons(i%).h THEN
+                IF buttons(i%).group = -1 THEN
+                    buttons(i%).targetAlpha = 0
+                END IF
+                IF pressed% = TRUE THEN
+                    CALL pressButton(i%)
+                    _SNDPLAY (click&)
+                END IF
+            ELSEIF buttons(i%).group = -1 THEN
+                buttons(i%).targetAlpha = 192
             END IF
-            IF pressed% = TRUE THEN
-                CALL pressButton(i%)
-                _SNDPLAY (click&)
-            END IF
-        ELSEIF buttons(i%).group = -1 THEN
-            buttons(i%).targetAlpha = 192
         END IF
     NEXT
     FOR i% = 1 TO UBOUND(buttons)
-        deltaSgn% = SGN(buttons(i%).targetAlpha - buttons(i%).currentAlpha)
-        IF deltaSgn% <> 0 THEN
-            IF deltaSgn% = 1 THEN delta% = 16 ELSE delta% = 32
-            FOR j% = 1 TO delta%
-                buttons(i%).currentAlpha = buttons(i%).currentAlpha + SGN(buttons(i%).targetAlpha - buttons(i%).currentAlpha)
-            NEXT
-            CALL drawButton(i%)
+        IF buttons(i%).active = TRUE THEN
+            deltaSgn% = SGN(buttons(i%).targetAlpha - buttons(i%).currentAlpha)
+            IF deltaSgn% <> 0 THEN
+                IF deltaSgn% = 1 THEN delta% = 16 ELSE delta% = 32
+                FOR j% = 1 TO delta%
+                    buttons(i%).currentAlpha = buttons(i%).currentAlpha + SGN(buttons(i%).targetAlpha - buttons(i%).currentAlpha)
+                NEXT
+                CALL drawButton(i%)
+            END IF
         END IF
     NEXT
 END SUB
@@ -222,9 +261,6 @@ END FUNCTION
 SUB updateMouse (xOffset%, yOffset%)
     STATIC x%, y%, lastX%, lastY%, colour&, buttonState%
     DO WHILE _MOUSEINPUT
-        x% = (_MOUSEX - 16 - xOffset%) / 32
-        y% = (_MOUSEY - 16 - yOffset%) / 32
-
         d& = _DEVICEINPUT
         IF d& THEN
             IF _BUTTONCHANGE(1) = 1 THEN
@@ -236,6 +272,8 @@ SUB updateMouse (xOffset%, yOffset%)
             END IF
         END IF
     LOOP
+    x% = (_MOUSEX - 16 - xOffset%) / 32
+    y% = (_MOUSEY - 16 - yOffset%) / 32
     IF lastX% > 0 AND lastY% > 0 AND lastX% <= gridSize% AND lastY% <= gridSize% THEN
         IF activeGrid%(lastX%, lastY%) = 2 THEN
             colour& = WHITE
@@ -396,6 +434,8 @@ SUB display (xOffset%, yOffset%)
                 LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), WHITE, BF
             ELSEIF activeGrid%(x%, y%) = 0 THEN
                 LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), DARKGREY, BF
+            ELSE
+                LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), BLACK, BF
             END IF
             LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), GREY, B
         NEXT
