@@ -76,15 +76,13 @@ DIM buttonNormal AS INTEGER
 DIM buttonHard AS INTEGER
 DIM buttonPlay AS INTEGER
 
-DIM SHARED titlePageImage&
-DIM buttonBorderImage&
-DIM playButtonBorderImage&
+DIM SHARED titlePageImage&, gameImage&
+DIM buttonBorderImage&, playButtonBorderImage&
 
-titlePageImage& = _LOADIMAGE("nonograms.png", 32)
-buttonBorderImage& = _LOADIMAGE("button border.png", 32)
-playButtonBorderImage& = _LOADIMAGE("play border.png", 32)
-
-_PUTIMAGE (0, 0), titlePageImage&
+titlePageImage& = _LOADIMAGE("assets/nonograms.png", 32)
+buttonBorderImage& = _LOADIMAGE("assets/button border.png", 32)
+playButtonBorderImage& = _LOADIMAGE("assets/play border.png", 32)
+gameImage& = _LOADIMAGE("assets/game.png", 32)
 
 button5x5 = setButton%(1, "button 5x5.png", buttonBorderImage&, 14, 300)
 button10x10 = setButton%(1, "button 10x10.png", buttonBorderImage&, 330, 300)
@@ -95,44 +93,46 @@ buttonNormal = setButton%(2, "button normal.png", buttonBorderImage&, 488, 510)
 buttonHard = setButton%(2, "button hard.png", buttonBorderImage&, 804, 510)
 buttonPlay = setButton%(3, "button play.png", playButtonBorderImage&, 340, 810): REM Needs a different border
 
-CALL drawButton(button5x5)
-CALL drawButton(button10x10)
-CALL drawButton(button15x15)
-CALL drawButton(button20x20)
-CALL drawButton(buttonEasy)
-CALL drawButton(buttonNormal)
-CALL drawButton(buttonHard)
-CALL drawButton(buttonPlay)
+DO
+    _PUTIMAGE (0, 0), titlePageImage&
 
-CALL pressButton(button10x10)
-CALL pressButton(buttonNormal)
+    CALL drawButton(button5x5)
+    CALL drawButton(button10x10)
+    CALL drawButton(button15x15)
+    CALL drawButton(button20x20)
+    CALL drawButton(buttonEasy)
+    CALL drawButton(buttonNormal)
+    CALL drawButton(buttonHard)
+    CALL drawButton(buttonPlay)
 
-DO: _LIMIT 30
-    CALL updateButtons
-    _DISPLAY
-LOOP UNTIL buttons(buttonPlay).pressed = TRUE
+    CALL pressButton(button10x10)
+    CALL pressButton(buttonNormal)
 
-IF buttons(button5x5).pressed = TRUE THEN s% = 5 ELSE IF buttons(button10x10).pressed = TRUE THEN s% = 10 ELSE IF buttons(button15x15).pressed = TRUE THEN s% = 15 ELSE s% = 20
-IF buttons(buttonEasy).pressed = TRUE THEN d! = 0.2 ELSE IF buttons(buttonNormal).pressed = TRUE THEN d! = 0.35 ELSE d! = 0.5
+    DO: _LIMIT 30
+        CALL updateButtons
+        _DISPLAY
+    LOOP UNTIL buttons(buttonPlay).pressed = TRUE
 
-CALL prepareData(s%)
-CALL createNonogram(d!)
-CALL resetGrid
-CALL display(xOffset%, yOffset%)
+    IF buttons(button5x5).pressed = TRUE THEN s% = 5 ELSE IF buttons(button10x10).pressed = TRUE THEN s% = 10 ELSE IF buttons(button15x15).pressed = TRUE THEN s% = 15 ELSE s% = 20
+    IF buttons(buttonEasy).pressed = TRUE THEN d! = 0.2 ELSE IF buttons(buttonNormal).pressed = TRUE THEN d! = 0.35 ELSE d! = 0.5
 
-DO: _LIMIT 30
-    CALL updateMouse(xOffset%, yOffset%)
-    _DISPLAY
-    complete% = checkForCompletion%
-LOOP UNTIL complete% = TRUE
+    CALL prepareData(s%)
+    CALL createNonogram(d!)
+    CALL resetGrid
+    CALL display(xOffset%, yOffset%)
 
-END
+    DO: _LIMIT 30
+        CALL updateMouse(xOffset%, yOffset%)
+        _DISPLAY
+        complete% = checkForCompletion%
+    LOOP UNTIL complete% = TRUE
+LOOP
 
 FUNCTION setButton% (group%, name$, border&, x%, y%)
     DIM id%
     REDIM _PRESERVE buttons(UBOUND(buttons) + 1) AS BUTTON
     id% = UBOUND(buttons)
-    buttons(id%).imageHandle = _LOADIMAGE(name$, 32)
+    buttons(id%).imageHandle = _LOADIMAGE("assets/" + name$, 32)
     buttons(id%).borderHandle = border&
     buttons(id%).x = x%
     buttons(id%).y = y%
@@ -205,11 +205,7 @@ FUNCTION checkForCompletion%
     checkForCompletion% = TRUE
     FOR y% = 1 TO gridSize%
         FOR x% = 1 TO gridSize%
-            IF targetGrid%(x%, y%) = EMPTY THEN
-                IF activeGrid%(x%, y%) = FULL THEN checkForCompletion% = FALSE
-            ELSE
-                IF activeGrid%(x%, y%) <> FULL THEN checkForCompletion% = FALSE
-            END IF
+            IF activeGrid%(x%, y%) <> targetGrid%(x%, y%) THEN checkForCompletion% = FALSE
         NEXT
     NEXT
 END FUNCTION
@@ -336,8 +332,9 @@ SUB createLine (index%, dir%)
 END SUB
 
 SUB display (xOffset%, yOffset%)
-    DIM x%, y%, maxCountX%, maxCountY%, r$, textX%, i%, temp%
-    _PUTIMAGE (0, 0), titlePageImage&
+    DIM x%, y%, maxCountX%, maxCountY%, r$, textX%, i%, temp%, totalWidth%, totalHeight%
+    _PUTIMAGE (0, 0), gameImage&
+    COLOR WHITE, _RGBA32(0, 0, 0, 0)
     REM Determine longest run of integers for a column
     maxCountY% = 0
     FOR x% = 1 TO gridSize%
@@ -354,10 +351,17 @@ SUB display (xOffset%, yOffset%)
             IF temp% > maxCountX% THEN maxCountX% = temp%
         END IF
     NEXT
+    REM Let's work out how to centre this in the dislay
+    totalWidth% = gridSize% * 32 + maxCountX% * 8
+    totalHeight% = gridSize% * 32 + maxCountY% * 16
+    xOffset% = 640 - totalWidth% / 2 + 8 * maxCountX% - 24
+    yOffset% = 480 - totalHeight% / 2 + 16 * maxCountY% - 48
+    xOffset% = xOffset% - xOffset% MOD 8
+    yOffset% = yOffset% - yOffset% MOD 16
     REM Display the column run numbers
     FOR x% = 1 TO gridSize%
         FOR y% = 1 TO numRuns%(COLUMN, x%)
-            LOCATE y% + maxCountY% + 2 - numRuns%(COLUMN, x%), maxCountX% + x% * 4
+            LOCATE yOffset% / 16 + y% - numRuns%(COLUMN, x%) + 2, xOffset% / 8 + x% * 4 + 2
             r$ = STR$(runs%(COLUMN, x%, y%))
             r$ = RIGHT$(r$, LEN(r$) - 1)
             IF LEN(r$) < 2 THEN r$ = " " + r$
@@ -366,17 +370,17 @@ SUB display (xOffset%, yOffset%)
     NEXT
     REM Display the row run numbers
     FOR y% = 1 TO gridSize%
-        textX% = maxCountX% + 3
+        textX% = 4
         FOR x% = numRuns%(ROW, y%) TO 1 STEP -1
             r$ = STR$(runs%(ROW, y%, x%))
             r$ = RIGHT$(r$, LEN(r$) - 1)
             textX% = textX% - LEN(r$) - 1
-            LOCATE maxCountY% + y% * 2 + 2, textX%
+            LOCATE yOffset% / 16 + y% * 2 + 2, xOffset% / 8 + textX%
             PRINT r$
         NEXT
     NEXT
-    xOffset% = 8 * maxCountX% - 16
-    yOffset% = 16 * maxCountY% + 6
+    xOffset% = xOffset% - 3
+    yOffset% = yOffset% + 6
     FOR y% = 1 TO gridSize%
         FOR x% = 1 TO gridSize%
             IF activeGrid%(x%, y%) = 2 THEN
