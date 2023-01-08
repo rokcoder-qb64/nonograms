@@ -1,5 +1,3 @@
-REM $DEBUG
-
 REM ---------------------------------------------------------------------------------------------------------------------------------
 
 SCREEN _NEWIMAGE(1280, 960, 32)
@@ -76,13 +74,18 @@ DIM buttonNormal AS INTEGER
 DIM buttonHard AS INTEGER
 DIM buttonPlay AS INTEGER
 
-DIM SHARED titlePageImage&, gameImage&
+DIM SHARED titlePageImage&, gameImage&, zimmer&, click&, tick&
 DIM buttonBorderImage&, playButtonBorderImage&
 
 titlePageImage& = _LOADIMAGE("assets/nonograms.png", 32)
 buttonBorderImage& = _LOADIMAGE("assets/button border.png", 32)
 playButtonBorderImage& = _LOADIMAGE("assets/play border.png", 32)
 gameImage& = _LOADIMAGE("assets/game.png", 32)
+
+zimmer& = _SNDOPEN("assets/hans zimmer - time.ogg")
+click& = _SNDOPEN("assets/click.ogg")
+tick& = _SNDOPEN("assets/tick.ogg")
+_SNDLOOP zimmer&
 
 button5x5 = setButton%(1, "button 5x5.png", buttonBorderImage&, 14, 300)
 button10x10 = setButton%(1, "button 10x10.png", buttonBorderImage&, 330, 300)
@@ -91,7 +94,7 @@ button20x20 = setButton%(1, "button 20x20.png", buttonBorderImage&, 962, 300)
 buttonEasy = setButton%(2, "button easy.png", buttonBorderImage&, 172, 510)
 buttonNormal = setButton%(2, "button normal.png", buttonBorderImage&, 488, 510)
 buttonHard = setButton%(2, "button hard.png", buttonBorderImage&, 804, 510)
-buttonPlay = setButton%(3, "button play.png", playButtonBorderImage&, 340, 810): REM Needs a different border
+buttonPlay = setButton%(-1, "button play.png", playButtonBorderImage&, 340, 810): REM Needs a different border
 
 DO
     _PUTIMAGE (0, 0), titlePageImage&
@@ -170,13 +173,19 @@ SUB updateButtons
             END IF
         END IF
     LOOP
-    IF pressed% = TRUE THEN
-        FOR i% = 1 TO UBOUND(buttons)
-            IF mouseX% > buttons(i%).x AND mouseX% < buttons(i%).x + buttons(i%).w AND mouseY% > buttons(i%).y AND mouseY% < buttons(i%).y + buttons(i%).h THEN
-                CALL pressButton(i%)
+    FOR i% = 1 TO UBOUND(buttons)
+        IF mouseX% > buttons(i%).x AND mouseX% < buttons(i%).x + buttons(i%).w AND mouseY% > buttons(i%).y AND mouseY% < buttons(i%).y + buttons(i%).h THEN
+            IF buttons(i%).group = -1 THEN
+                buttons(i%).targetAlpha = 0
             END IF
-        NEXT
-    END IF
+            IF pressed% = TRUE THEN
+                CALL pressButton(i%)
+                _SNDPLAY (click&)
+            END IF
+        ELSEIF buttons(i%).group = -1 THEN
+            buttons(i%).targetAlpha = 192
+        END IF
+    NEXT
     FOR i% = 1 TO UBOUND(buttons)
         deltaSgn% = SGN(buttons(i%).targetAlpha - buttons(i%).currentAlpha)
         IF deltaSgn% <> 0 THEN
@@ -239,7 +248,7 @@ SUB updateMouse (xOffset%, yOffset%)
         LINE (lastX% * 32 + xOffset%, lastY% * 32 + yOffset%)-(lastX% * 32 + 32 + xOffset%, lastY% * 32 + 32 + yOffset%), GREY, B
     END IF
     IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
-        IF buttonState% > 0 THEN activeGrid%(x%, y%) = buttonState%
+        IF buttonState% > 0 AND activeGrid%(x%, y%) <> buttonState% THEN activeGrid%(x%, y%) = buttonState%: _SNDPLAY (tick&)
         IF activeGrid%(x%, y%) = 2 THEN
             colour& = WHITE
         ELSEIF activeGrid%(x%, y%) = 0 THEN
