@@ -1,4 +1,10 @@
 REM ---------------------------------------------------------------------------------------------------------------------------------
+REM Nonograms (aka Hanjie)
+REM   Programmed by RokCoder (aka Cliff Davies)
+REM
+REM RokCoder repository - https://github.com/RokCoder
+REM Project repository - https://github.com/rokcoder-qb64/nonograms
+REM ---------------------------------------------------------------------------------------------------------------------------------
 
 SCREEN _NEWIMAGE(1280, 960, 32)
 DO: _LIMIT 10: LOOP UNTIL _SCREENEXISTS
