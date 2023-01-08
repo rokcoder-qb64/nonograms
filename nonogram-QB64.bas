@@ -1,7 +1,13 @@
+REM $DEBUG
+
+REM ---------------------------------------------------------------------------------------------------------------------------------
+
 SCREEN _NEWIMAGE(1280, 960, 32)
 DO: _LIMIT 10: LOOP UNTIL _SCREENEXISTS
 _TITLE "Nonograms"
 REM _ScreenMove _Middle
+
+REM ----- Initialise constants ------------------------------------------------------------------------------------------------------
 
 CONST WHITE = _RGB32(255, 255, 255)
 CONST GREY = _RGB32(127, 127, 127)
@@ -19,6 +25,23 @@ CONST FULL = 2
 CONST ROW = 1
 CONST COLUMN = 2
 
+TYPE BUTTON
+    imageHandle AS LONG
+    borderHandle AS LONG
+    x AS INTEGER
+    y AS INTEGER
+    currentAlpha AS INTEGER
+    targetAlpha AS INTEGER
+    w AS INTEGER
+    h AS INTEGER
+    group AS INTEGER
+    pressed AS INTEGER
+END TYPE
+
+REDIM SHARED buttons(0) AS BUTTON
+
+REM ---------------------------------------------------------------------------------------------------------------------------------
+
 REDIM SHARED targetGrid%(0, 0)
 REM All nonogram line data runLines(a,b,c) where a=1 or 2 (row or column), b=row/column index and c=nonogram run data
 REDIM SHARED runs%(0, 0, 0)
@@ -33,29 +56,163 @@ REDIM SHARED numPermutations%(0, 0)
 REM Grid for solving in
 REDIM SHARED activeGrid%(0, 0)
 
-DIM SHARED gridSize%, solved%, xOffset%, yOffset%
+DIM SHARED gridSize%
+
+REM ---------------------------------------------------------------------------------------------------------------------------------
 
 RANDOMIZE TIMER
 CLS
 
-gridSize% = 10: CALL prepareData
+REM ---------------------------------------------------------------------------------------------------------------------------------
 
-solved% = FALSE
+DIM xOffset%, yOffset%, complete%, s%, d!
 
-DO WHILE solved% = FALSE
-    CALL create
-    solved% = solve%
-LOOP
+DIM button5x5 AS INTEGER
+DIM button10x10 AS INTEGER
+DIM button15x15 AS INTEGER
+DIM button20x20 AS INTEGER
+DIM buttonEasy AS INTEGER
+DIM buttonNormal AS INTEGER
+DIM buttonHard AS INTEGER
+DIM buttonPlay AS INTEGER
 
-resetGrid
+DIM SHARED titlePageImage&
+DIM buttonBorderImage&
+DIM playButtonBorderImage&
+
+titlePageImage& = _LOADIMAGE("nonograms.png", 32)
+buttonBorderImage& = _LOADIMAGE("button border.png", 32)
+playButtonBorderImage& = _LOADIMAGE("play border.png", 32)
+
+_PUTIMAGE (0, 0), titlePageImage&
+
+button5x5 = setButton%(1, "button 5x5.png", buttonBorderImage&, 14, 300)
+button10x10 = setButton%(1, "button 10x10.png", buttonBorderImage&, 330, 300)
+button15x15 = setButton%(1, "button 15x15.png", buttonBorderImage&, 646, 300)
+button20x20 = setButton%(1, "button 20x20.png", buttonBorderImage&, 962, 300)
+buttonEasy = setButton%(2, "button easy.png", buttonBorderImage&, 172, 510)
+buttonNormal = setButton%(2, "button normal.png", buttonBorderImage&, 488, 510)
+buttonHard = setButton%(2, "button hard.png", buttonBorderImage&, 804, 510)
+buttonPlay = setButton%(3, "button play.png", playButtonBorderImage&, 340, 810): REM Needs a different border
+
+CALL drawButton(button5x5)
+CALL drawButton(button10x10)
+CALL drawButton(button15x15)
+CALL drawButton(button20x20)
+CALL drawButton(buttonEasy)
+CALL drawButton(buttonNormal)
+CALL drawButton(buttonHard)
+CALL drawButton(buttonPlay)
+
+CALL pressButton(button10x10)
+CALL pressButton(buttonNormal)
+
+DO: _LIMIT 30
+    CALL updateButtons
+    _DISPLAY
+LOOP UNTIL buttons(buttonPlay).pressed = TRUE
+
+IF buttons(button5x5).pressed = TRUE THEN s% = 5 ELSE IF buttons(button10x10).pressed = TRUE THEN s% = 10 ELSE IF buttons(button15x15).pressed = TRUE THEN s% = 15 ELSE s% = 20
+IF buttons(buttonEasy).pressed = TRUE THEN d! = 0.2 ELSE IF buttons(buttonNormal).pressed = TRUE THEN d! = 0.35 ELSE d! = 0.5
+
+CALL prepareData(s%)
+CALL createNonogram(d!)
+CALL resetGrid
 CALL display(xOffset%, yOffset%)
 
-DO
-    _LIMIT 30
+DO: _LIMIT 30
     CALL updateMouse(xOffset%, yOffset%)
-LOOP UNTIL TRUE = FALSE
+    _DISPLAY
+    complete% = checkForCompletion%
+LOOP UNTIL complete% = TRUE
 
 END
+
+FUNCTION setButton% (group%, name$, border&, x%, y%)
+    DIM id%
+    REDIM _PRESERVE buttons(UBOUND(buttons) + 1) AS BUTTON
+    id% = UBOUND(buttons)
+    buttons(id%).imageHandle = _LOADIMAGE(name$, 32)
+    buttons(id%).borderHandle = border&
+    buttons(id%).x = x%
+    buttons(id%).y = y%
+    buttons(id%).currentAlpha = 192
+    buttons(id%).targetAlpha = 192
+    buttons(id%).w = _WIDTH(buttons(id%).imageHandle)
+    buttons(id%).h = _HEIGHT(buttons(id%).imageHandle)
+    buttons(id%).group = group%
+    buttons(id%).pressed = FALSE
+    CALL drawButton(id%)
+    setButton% = id%
+END FUNCTION
+
+SUB freeButton (buttonId%)
+    _FREEIMAGE (buttons(buttonId%).imageHandle)
+END SUB
+
+SUB drawButton (buttonId%)
+    _PUTIMAGE (buttons(buttonId%).x, buttons(buttonId%).y), buttons(buttonId%).imageHandle
+    LINE (buttons(buttonId%).x + 10, buttons(buttonId%).y + 10)-(buttons(buttonId%).x + buttons(buttonId%).w - 10, buttons(buttonId%).y + buttons(buttonId%).h - 10), _RGBA32(0, 0, 0, buttons(buttonId%).currentAlpha), BF
+    _PUTIMAGE (buttons(buttonId%).x, buttons(buttonId%).y), buttons(buttonId%).borderHandle
+END SUB
+
+SUB updateButtons
+    STATIC mouseX%, mouseY%
+    DIM i%, j%, pressed%, deltaSgn%, delta%
+    pressed% = FALSE
+    DO WHILE _MOUSEINPUT
+        mouseX% = _MOUSEX
+        mouseY% = _MOUSEY
+        d& = _DEVICEINPUT
+        IF d& THEN
+            IF _BUTTONCHANGE(1) = -1 THEN
+                pressed% = TRUE
+            END IF
+        END IF
+    LOOP
+    IF pressed% = TRUE THEN
+        FOR i% = 1 TO UBOUND(buttons)
+            IF mouseX% > buttons(i%).x AND mouseX% < buttons(i%).x + buttons(i%).w AND mouseY% > buttons(i%).y AND mouseY% < buttons(i%).y + buttons(i%).h THEN
+                CALL pressButton(i%)
+            END IF
+        NEXT
+    END IF
+    FOR i% = 1 TO UBOUND(buttons)
+        deltaSgn% = SGN(buttons(i%).targetAlpha - buttons(i%).currentAlpha)
+        IF deltaSgn% <> 0 THEN
+            IF deltaSgn% = 1 THEN delta% = 16 ELSE delta% = 32
+            FOR j% = 1 TO delta%
+                buttons(i%).currentAlpha = buttons(i%).currentAlpha + SGN(buttons(i%).targetAlpha - buttons(i%).currentAlpha)
+            NEXT
+            CALL drawButton(i%)
+        END IF
+    NEXT
+END SUB
+
+SUB pressButton (buttonId%)
+    DIM i%
+    FOR i% = 1 TO UBOUND(buttons)
+        IF buttons(i%).group = buttons(buttonId%).group THEN
+            IF i% = buttonId% THEN buttons(i%).targetAlpha = 0: buttons(i%).pressed = TRUE ELSE buttons(i%).targetAlpha = 192: buttons(i%).pressed = FALSE
+        END IF
+    NEXT
+END SUB
+
+REM ---------------------------------------------------------------------------------------------------------------------------------
+
+FUNCTION checkForCompletion%
+    DIM x%, y%
+    checkForCompletion% = TRUE
+    FOR y% = 1 TO gridSize%
+        FOR x% = 1 TO gridSize%
+            IF targetGrid%(x%, y%) = EMPTY THEN
+                IF activeGrid%(x%, y%) = FULL THEN checkForCompletion% = FALSE
+            ELSE
+                IF activeGrid%(x%, y%) <> FULL THEN checkForCompletion% = FALSE
+            END IF
+        NEXT
+    NEXT
+END FUNCTION
 
 SUB updateMouse (xOffset%, yOffset%)
     STATIC x%, y%, lastX%, lastY%, colour&, buttonState%
@@ -74,10 +231,6 @@ SUB updateMouse (xOffset%, yOffset%)
             END IF
         END IF
     LOOP
-
-    LOCATE 1, 1
-    PRINT buttonState%
-
     IF lastX% > 0 AND lastY% > 0 AND lastX% <= gridSize% AND lastY% <= gridSize% THEN
         IF activeGrid%(lastX%, lastY%) = 2 THEN
             colour& = WHITE
@@ -108,7 +261,8 @@ SUB updateMouse (xOffset%, yOffset%)
     REM END IF
 END SUB
 
-SUB prepareData
+SUB prepareData (size%)
+    gridSize% = size%
     REM All cells in grid(,) can be 0 (unknown), 1 (empty) or 2 (full)
     REDIM targetGrid%(gridSize% + 1, gridSize% + 1)
     REM All nonogram line data runLines(a,b,c) where a=1 or 2 (row or column), b=row/column index and c=nonogram run data
@@ -134,11 +288,21 @@ SUB resetGrid
     NEXT
 END SUB
 
-SUB create
+SUB createNonogram (d!)
+    DIM solved%
+    solved% = FALSE
+    DO WHILE solved% = FALSE
+        CALL create(d!)
+        solved% = solve%
+    LOOP
+END SUB
+
+SUB create (d!)
     DIM x%, y%, z%, i%
     FOR y% = 1 TO gridSize%
         FOR x% = 1 TO gridSize%
-            targetGrid%(x%, y%) = INT(RND * 2) + 1
+            IF RND < d! THEN targetGrid%(x%, y%) = 1 ELSE targetGrid%(x%, y%) = 2
+            REM targetGrid%(x%, y%) = INT(RND * 2) + 1
         NEXT
     NEXT
     FOR z% = 1 TO 2
@@ -173,7 +337,7 @@ END SUB
 
 SUB display (xOffset%, yOffset%)
     DIM x%, y%, maxCountX%, maxCountY%, r$, textX%, i%, temp%
-    CLS
+    _PUTIMAGE (0, 0), titlePageImage&
     REM Determine longest run of integers for a column
     maxCountY% = 0
     FOR x% = 1 TO gridSize%
@@ -202,13 +366,13 @@ SUB display (xOffset%, yOffset%)
     NEXT
     REM Display the row run numbers
     FOR y% = 1 TO gridSize%
-        textX% = maxCountX% + 1
+        textX% = maxCountX% + 3
         FOR x% = numRuns%(ROW, y%) TO 1 STEP -1
-            LOCATE maxCountY% + y% * 2 + 2, textX%
             r$ = STR$(runs%(ROW, y%, x%))
             r$ = RIGHT$(r$, LEN(r$) - 1)
-            PRINT r$
             textX% = textX% - LEN(r$) - 1
+            LOCATE maxCountY% + y% * 2 + 2, textX%
+            PRINT r$
         NEXT
     NEXT
     xOffset% = 8 * maxCountX% - 16
@@ -356,9 +520,7 @@ SUB repeatByte (byte%, num%, b&, e&)
         IF byte% = 0 THEN
             b& = b& * (2 ^ num%)
         ELSE
-            FOR t% = 1 TO num%
-                e& = e& + 1 * b&: b& = b& * 2
-            NEXT
+            FOR t% = 1 TO num%: e& = e& + 1 * b&: b& = b& * 2: NEXT
         END IF
     END IF
 END SUB
