@@ -9,7 +9,7 @@ REM ----------------------------------------------------------------------------
 OPTION _EXPLICIT
 
 SCREEN _NEWIMAGE(1280, 960, 32)
-REM $RESIZE:STRETCH
+$RESIZE:STRETCH
 DO: _LIMIT 10: LOOP UNTIL _SCREENEXISTS
 _TITLE "Nonograms"
 
@@ -269,8 +269,8 @@ FUNCTION checkForCompletion%
 END FUNCTION
 
 SUB updateMouse (xOffset%, yOffset%)
-    STATIC lastX%, lastY%, buttonState%
-    DIM d&, x%, y%, colour&
+    STATIC lastX%, lastY%, buttonState%, x%, y%
+    DIM d&, colour&
     DO WHILE _MOUSEINPUT
         d& = _DEVICEINPUT
         IF d& THEN
