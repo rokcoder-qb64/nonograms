@@ -6,7 +6,10 @@ REM RokCoder repository - https://github.com/RokCoder
 REM Project repository - https://github.com/rokcoder-qb64/nonograms
 REM ---------------------------------------------------------------------------------------------------------------------------------
 
+OPTION _EXPLICIT
+
 SCREEN _NEWIMAGE(1280, 960, 32)
+$RESIZE:STRETCH
 DO: _LIMIT 10: LOOP UNTIL _SCREENEXISTS
 _TITLE "Nonograms"
 
@@ -16,7 +19,7 @@ CONST WHITE = _RGB32(255, 255, 255)
 CONST GREY = _RGB32(127, 127, 127)
 CONST GREEN = _RGB32(0, 255, 0)
 CONST BLACK = _RGB32(0, 0, 0)
-CONST DARKGREY = _RGB32(64, 64, 64)
+Const DARKGREY = _RGB32(64, 64, 64)
 
 CONST TRUE = 1
 CONST FALSE = 0
@@ -79,6 +82,7 @@ DIM buttonEasy AS INTEGER
 DIM buttonNormal AS INTEGER
 DIM buttonHard AS INTEGER
 DIM buttonPlay AS INTEGER
+DIM buttonContinue AS INTEGER
 
 DIM SHARED titlePageImage&, gameImage&, zimmer&, click&, tick&, congrats&
 DIM buttonBorderImage&, playButtonBorderImage&
@@ -202,7 +206,7 @@ END SUB
 
 SUB updateButtons
     STATIC mouseX%, mouseY%
-    DIM i%, j%, pressed%, deltaSgn%, delta%
+    DIM i%, j%, pressed%, deltaSgn%, delta%, d&
     pressed% = FALSE
     DO WHILE _MOUSEINPUT
         d& = _DEVICEINPUT
@@ -265,7 +269,8 @@ FUNCTION checkForCompletion%
 END FUNCTION
 
 SUB updateMouse (xOffset%, yOffset%)
-    STATIC x%, y%, lastX%, lastY%, colour&, buttonState%
+    STATIC lastX%, lastY%, buttonState%
+    DIM d&, x%, y%, colour&
     DO WHILE _MOUSEINPUT
         d& = _DEVICEINPUT
         IF d& THEN
@@ -449,7 +454,7 @@ SUB display (xOffset%, yOffset%)
 END SUB
 
 FUNCTION solve%
-    DIM x%, y%, dir%, i%, solvable%
+    DIM x%, y%, dir%, i%, solvable%, unfilledCount%
     FOR y% = 1 TO gridSize%
         FOR x% = 1 TO gridSize%
             activeGrid%(x%, y%) = UNKNOWN
@@ -470,12 +475,12 @@ END FUNCTION
 SUB scan (solvable%, unfilledCount%)
     DIM solvableLine%
     solvable% = FALSE
-    soilvableLine% = FALSE
-    CALL setCommonalities(ROW, soilvableLine%, unfilledCount%)
-    IF soilvableLine% = TRUE THEN solvable% = TRUE: CALL removeNonMatchingLines(COLUMN)
     solvableLine% = FALSE
-    CALL setCommonalities(COLUMN, soilvableLine%, unfilledCount%)
-    IF soilvableLine% = TRUE THEN solvable% = TRUE: CALL removeNonMatchingLines(ROW)
+    CALL setCommonalities(ROW, solvableLine%, unfilledCount%)
+    IF solvableLine% = TRUE THEN solvable% = TRUE: CALL removeNonMatchingLines(COLUMN)
+    solvableLine% = FALSE
+    CALL setCommonalities(COLUMN, solvableLine%, unfilledCount%)
+    IF solvableLine% = TRUE THEN solvable% = TRUE: CALL removeNonMatchingLines(ROW)
 END SUB
 
 SUB setCommonalities (dir%, solvableLine%, unfilledCount%)
