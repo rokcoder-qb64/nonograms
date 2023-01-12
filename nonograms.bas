@@ -23,8 +23,8 @@ CONST GREEN = _RGB32(0, 255, 0)
 CONST BLACK = _RGB32(0, 0, 0)
 CONST DARKGREY = _RGB32(64, 64, 64)
 
-CONST TRUE = 1
 CONST FALSE = 0
+CONST TRUE = NOT FALSE
 
 CONST UNKNOWN = 0
 CONST EMPTY = 1
@@ -74,7 +74,7 @@ CLS
 
 REM ---------------------------------------------------------------------------------------------------------------------------------
 
-DIM xOffset%, yOffset%, complete%, s%, d!, pressed%, released%
+DIM xOffset%, yOffset%, complete%, s%, d!, pressed%, released%, sfx%, msc%
 
 DIM button5x5 AS INTEGER
 DIM button10x10 AS INTEGER
@@ -86,9 +86,11 @@ DIM buttonHard AS INTEGER
 DIM buttonPlay AS INTEGER
 DIM buttonContinue AS INTEGER
 DIM buttonExit AS INTEGER
+DIM buttonSound AS INTEGER
+DIM buttonMusic AS INTEGER
 
 DIM titlePageImage&, gameImage&, zimmer&, click&, tick&, congrats&
-DIM buttonBorderImage&, playButtonBorderImage&, exitButtonBorderImage&
+DIM buttonBorderImage&, playButtonBorderImage&, exitButtonBorderImage&, soundon&, soundoff&, musicon&, musicoff&
 
 titlePageImage& = _LOADIMAGE("assets/nonograms.png", 32)
 buttonBorderImage& = _LOADIMAGE("assets/button border.png", 32)
@@ -96,11 +98,19 @@ playButtonBorderImage& = _LOADIMAGE("assets/play border.png", 32)
 exitButtonBorderImage& = _LOADIMAGE("assets/exit border.png", 32)
 gameImage& = _LOADIMAGE("assets/game.png", 32)
 congrats& = _LOADIMAGE("assets/congrats.png", 32)
+soundon& = _LOADIMAGE("assets/button sound.png", 32)
+soundoff& = _LOADIMAGE("assets/button sound off.png", 32)
+musicon& = _LOADIMAGE("assets/button music.png", 32)
+musicoff& = _LOADIMAGE("assets/button music off.png", 32)
 
 zimmer& = _SNDOPEN("assets/hans zimmer - time.ogg")
+
 click& = _SNDOPEN("assets/click.ogg")
 tick& = _SNDOPEN("assets/tick.ogg")
 _SNDLOOP zimmer&
+
+sfx% = TRUE
+msc% = TRUE
 
 button5x5 = setButton%(1, "button 5x5.png", buttonBorderImage&, 14, 300)
 button10x10 = setButton%(1, "button 10x10.png", buttonBorderImage&, 330, 300)
@@ -112,9 +122,14 @@ buttonHard = setButton%(2, "button hard.png", buttonBorderImage&, 804, 510)
 buttonPlay = setButton%(-1, "button play.png", playButtonBorderImage&, 340, 810)
 buttonContinue = setButton%(-1, "continue.png", playButtonBorderImage&, 340, 810)
 buttonExit = setButton%(-1, "exit.png", exitButtonBorderImage&, 1130, 880)
+buttonSound = setButtonWithoutImage%(-1, exitButtonBorderImage&, 1130, 10)
+buttonMusic = setButtonWithoutImage%(-1, exitButtonBorderImage&, 1130, 90)
 
 pressButton button10x10
 pressButton buttonNormal
+
+changeButtonImage buttonSound, soundon&
+changeButtonImage buttonMusic, musicon&
 
 DO
     _PUTIMAGE (0, 0), titlePageImage&
@@ -127,12 +142,15 @@ DO
     drawButton buttonNormal
     drawButton buttonHard
     drawButton buttonPlay
+    drawButton buttonSound
+    drawButton buttonMusic
 
     waitForNoButton
 
     DO: _LIMIT 30
         updateMouse pressed%, released%
         updateButtons pressed%
+        updateSoundSettings
         _DISPLAY
     LOOP UNTIL buttons(buttonPlay).pressed = TRUE
 
@@ -145,12 +163,16 @@ DO
     createNonogram d!
     resetGrid
     display xOffset%, yOffset%
+
     drawButton buttonExit
+    drawButton buttonSound
+    drawButton buttonMusic
 
     DO: _LIMIT 30
         updateMouse pressed%, released%
         updateGrid xOffset%, yOffset%, pressed%, released%
         updateButtons pressed%
+        updateSoundSettings
         _DISPLAY
         complete% = checkForCompletion%
     LOOP UNTIL complete% = TRUE OR buttons(buttonExit).pressed = TRUE
@@ -161,16 +183,41 @@ DO
         display xOffset%, yOffset%
         _PUTIMAGE (32, 32), congrats&
         drawButton buttonContinue
+        drawButton buttonSound
+        drawButton buttonMusic
         waitForNoButton
         DO: _LIMIT 30
             updateMouse pressed%, released%
             updateButtons pressed%
+            updateSoundSettings
             _DISPLAY
         LOOP UNTIL buttons(buttonContinue).pressed = TRUE
 
         removeButtons
     END IF
 LOOP
+
+SUB updateSoundSettings
+    SHARED buttons() AS BUTTON
+    SHARED buttonSound AS INTEGER
+    SHARED buttonMusic AS INTEGER
+    SHARED sfx%, msc%
+    SHARED soundon&, soundoff&, musicon&, musicoff&, zimmer&
+
+    IF buttons(buttonSound).pressed THEN
+        IF sfx% THEN changeButtonImage buttonSound, soundoff& ELSE changeButtonImage buttonSound, soundon&
+        sfx% = NOT sfx%
+        drawButton buttonSound
+        buttons(buttonSound).pressed = FALSE
+    END IF
+    IF buttons(buttonMusic).pressed THEN
+        IF msc% THEN changeButtonImage buttonMusic, musicoff& ELSE changeButtonImage buttonMusic, musicon&
+        msc% = NOT msc%
+        IF msc% THEN _SNDVOL zimmer&, 1.0 ELSE _SNDVOL zimmer&, 0.0
+        drawButton buttonMusic
+        buttons(buttonMusic).pressed = FALSE
+    END IF
+END SUB
 
 SUB removeButtons
     SHARED buttons() AS BUTTON
@@ -182,22 +229,39 @@ END SUB
 
 FUNCTION setButton% (group%, name$, border&, x%, y%)
     SHARED buttons() AS BUTTON
+    DIM id%
+    id% = setButtonWithoutImage(group%, border&, x%, y%)
+    buttons(id%).imageHandle = _LOADIMAGE("assets/" + name$, 32)
+    buttons(id%).w = _WIDTH(buttons(id%).imageHandle)
+    buttons(id%).h = _HEIGHT(buttons(id%).imageHandle)
+    setButton% = id%
+END FUNCTION
+
+FUNCTION setButtonWithoutImage% (group%, border&, x%, y%)
+    SHARED buttons() AS BUTTON
     REDIM _PRESERVE buttons(UBOUND(buttons) + 1) AS BUTTON
     DIM id%
     id% = UBOUND(buttons)
-    buttons(id%).imageHandle = _LOADIMAGE("assets/" + name$, 32)
+    buttons(id%).imageHandle = -1
     buttons(id%).borderHandle = border&
     buttons(id%).x = x%
     buttons(id%).y = y%
     buttons(id%).currentAlpha = 192
     buttons(id%).targetAlpha = 192
-    buttons(id%).w = _WIDTH(buttons(id%).imageHandle)
-    buttons(id%).h = _HEIGHT(buttons(id%).imageHandle)
+    buttons(id%).w = 0
+    buttons(id%).h = 0
     buttons(id%).group = group%
     buttons(id%).pressed = FALSE
     buttons(id%).active% = FALSE
-    setButton% = id%
+    setButtonWithoutImage% = id%
 END FUNCTION
+
+SUB changeButtonImage (buttonId%, buttonImage&)
+    SHARED buttons() AS BUTTON
+    buttons(buttonId%).imageHandle = buttonImage&
+    buttons(buttonId%).w = _WIDTH(buttons(buttonId%).imageHandle)
+    buttons(buttonId%).h = _HEIGHT(buttons(buttonId%).imageHandle)
+END SUB
 
 SUB freeButton (buttonId%)
     SHARED buttons() AS BUTTON
@@ -225,6 +289,7 @@ END SUB
 SUB updateButtons (pressed%)
     SHARED buttons() AS BUTTON
     SHARED click&
+    SHARED sfx%
     STATIC mouseX%, mouseY%
     DIM i%, j%, deltaSgn%, delta%, d&
 
@@ -238,7 +303,7 @@ SUB updateButtons (pressed%)
                 END IF
                 IF pressed% = TRUE THEN
                     pressButton i%
-                    _SNDPLAY (click&)
+                    IF sfx% THEN _SNDPLAY (click&)
                 END IF
             ELSEIF buttons(i%).group = -1 THEN
                 buttons(i%).targetAlpha = 192
@@ -304,6 +369,7 @@ SUB updateGrid (xOffset%, yOffset%, pressed%, released%)
     SHARED gridSize%
     SHARED activeGrid%(), targetGrid%()
     SHARED tick&
+    SHARED sfx%
     STATIC lastX%, lastY%, buttonState%
     DIM x%, y%
 
@@ -323,7 +389,7 @@ SUB updateGrid (xOffset%, yOffset%, pressed%, released%)
     END IF
 
     IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
-        IF buttonState% > 0 AND activeGrid%(x%, y%) <> buttonState% THEN activeGrid%(x%, y%) = buttonState%: _SNDPLAY (tick&)
+        IF buttonState% > 0 AND activeGrid%(x%, y%) <> buttonState% THEN activeGrid%(x%, y%) = buttonState%: IF sfx% THEN _SNDPLAY (tick&)
         drawGridCursor x%, y%, xOffset%, yOffset%
     ELSE
         buttonState% = 0
