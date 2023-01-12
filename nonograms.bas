@@ -16,7 +16,8 @@ _TITLE "Nonograms"
 REM ----- Initialise constants ------------------------------------------------------------------------------------------------------
 
 CONST WHITE = _RGB32(255, 255, 255)
-CONST GREY = _RGB32(127, 127, 127)
+CONST GREY = _RGB32(128, 128, 128)
+CONST LIGHTGREY = _RGB32(192, 192, 192)
 CONST GREEN = _RGB32(0, 255, 0)
 CONST BLACK = _RGB32(0, 0, 0)
 CONST DARKGREY = _RGB32(64, 64, 64)
@@ -326,9 +327,21 @@ FUNCTION getGridColour& (x%, y%)
     END IF
 END FUNCTION
 
+FUNCTION widthFor& (c%)
+    SHARED gridSize%
+    IF c% = 1 OR c% = gridSize% + 1 THEN widthFor = 0 ELSE IF (c% - 1) MOD 5 = 0 THEN widthFor = 2 ELSE widthFor = 0
+END FUNCTION
+
+SUB drawGridOutline (x%, y%, xOffset%, yOffset%)
+    LINE (x% * 32 + xOffset% - widthFor(x%), y% * 32 + yOffset%)-(x% * 32 + xOffset% + widthFor(x%), y% * 32 + 32 + yOffset%), GREY, BF
+    LINE (x% * 32 + 32 + xOffset% - widthFor(x% + 1), y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset% + widthFor(x% + 1), y% * 32 + 32 + yOffset%), GREY, BF
+    LINE (x% * 32 + xOffset%, y% * 32 + yOffset% - widthFor(y%))-(x% * 32 + 32 + xOffset%, y% * 32 + yOffset% + widthFor(y%)), GREY, BF
+    LINE (x% * 32 + xOffset%, y% * 32 + 32 + yOffset% - widthFor(y% + 1))-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset% + widthFor(y% + 1)), GREY, BF
+END SUB
+
 SUB drawGridSquare (x%, y%, xOffset%, yOffset%)
     LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), getGridColour&(x%, y%), BF
-    LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), GREY, B
+    drawGridOutline x%, y%, xOffset%, yOffset%
 END SUB
 
 SUB drawGridCursor (x%, y%, xOffset%, yOffset%)
