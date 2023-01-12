@@ -305,11 +305,8 @@ SUB updateMouse (xOffset%, yOffset%)
     END IF
 
     IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
-        '        IF buttonState% > 0 AND activeGrid%(x%, y%) <> buttonState% THEN activeGrid%(x%, y%) = buttonState%: _SNDPLAY (tick&)
-        drawGridSquare x%, y%, xOffset%, yOffset%
-        '        drawCursor x%,y%,xOffset%,yOffset%
-        '        LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), GREY, BF
-        '        LINE (x% * 32 + 8 + xOffset%, y% * 32 + 8 + yOffset%)-(x% * 32 - 8 + 32 + xOffset%, y% * 32 - 8 + 32 + yOffset%), colour&, BF
+        IF buttonState% > 0 AND activeGrid%(x%, y%) <> buttonState% THEN activeGrid%(x%, y%) = buttonState%: _SNDPLAY (tick&)
+        drawGridCursor x%, y%, xOffset%, yOffset%
     ELSE
         buttonState% = 0
     END IF
@@ -318,20 +315,26 @@ SUB updateMouse (xOffset%, yOffset%)
     lastY% = y%
 END SUB
 
-SUB drawGridSquare (x%, y%, xOffset%, yOffset%)
+FUNCTION getGridColour& (x%, y%)
     SHARED activeGrid%()
-    DIM colour&
     IF activeGrid%(x%, y%) = 2 THEN
-        colour& = WHITE
+        getGridColour& = WHITE
     ELSEIF activeGrid%(x%, y%) = 0 THEN
-        colour& = DARKGREY
+        getGridColour& = DARKGREY
     ELSE
-        colour& = BLACK
+        getGridColour& = BLACK
     END IF
-    LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), colour&, BF
+END FUNCTION
+
+SUB drawGridSquare (x%, y%, xOffset%, yOffset%)
+    LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), getGridColour&(x%, y%), BF
     LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), GREY, B
 END SUB
 
+SUB drawGridCursor (x%, y%, xOffset%, yOffset%)
+    LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), GREY, BF
+    LINE (x% * 32 + 8 + xOffset%, y% * 32 + 8 + yOffset%)-(x% * 32 - 8 + 32 + xOffset%, y% * 32 - 8 + 32 + yOffset%), getGridColour&(x%, y%), BF
+END SUB
 
 SUB prepareData (size%)
     SHARED gridSize%
