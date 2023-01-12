@@ -74,7 +74,7 @@ CLS
 
 REM ---------------------------------------------------------------------------------------------------------------------------------
 
-DIM xOffset%, yOffset%, complete%, s%, d!, pressed%, released%, sfx%, msc%
+DIM xOffset%, yOffset%, complete%, s%, d!, pressed1%, released1%, sfx%, msc%, pressed2%, released2%
 
 DIM button5x5 AS INTEGER
 DIM button10x10 AS INTEGER
@@ -92,21 +92,21 @@ DIM buttonMusic AS INTEGER
 DIM titlePageImage&, gameImage&, zimmer&, click&, tick&, congrats&
 DIM buttonBorderImage&, playButtonBorderImage&, exitButtonBorderImage&, soundon&, soundoff&, musicon&, musicoff&
 
-titlePageImage& = _LOADIMAGE("assets/nonograms.png", 32)
-buttonBorderImage& = _LOADIMAGE("assets/button border.png", 32)
-playButtonBorderImage& = _LOADIMAGE("assets/play border.png", 32)
-exitButtonBorderImage& = _LOADIMAGE("assets/exit border.png", 32)
-gameImage& = _LOADIMAGE("assets/game.png", 32)
-congrats& = _LOADIMAGE("assets/congrats.png", 32)
-soundon& = _LOADIMAGE("assets/button sound.png", 32)
-soundoff& = _LOADIMAGE("assets/button sound off.png", 32)
-musicon& = _LOADIMAGE("assets/button music.png", 32)
-musicoff& = _LOADIMAGE("assets/button music off.png", 32)
+titlePageImage& = LoadImage("nonograms.png")
+buttonBorderImage& = LoadImage("button border.png")
+playButtonBorderImage& = LoadImage("play border.png")
+exitButtonBorderImage& = LoadImage("exit border.png")
+gameImage& = LoadImage("game.png")
+congrats& = LoadImage("congrats.png")
+soundon& = LoadImage("button sound.png")
+soundoff& = LoadImage("button sound off.png")
+musicon& = LoadImage("button music.png")
+musicoff& = LoadImage("button music off.png")
 
-zimmer& = _SNDOPEN("assets/hans zimmer - time.ogg")
+zimmer& = SndOpen("hans zimmer - time.ogg")
+click& = SndOpen("click.ogg")
+tick& = SndOpen("tick.ogg")
 
-click& = _SNDOPEN("assets/click.ogg")
-tick& = _SNDOPEN("assets/tick.ogg")
 _SNDLOOP zimmer&
 
 sfx% = TRUE
@@ -148,8 +148,8 @@ DO
     waitForNoButton
 
     DO: _LIMIT 30
-        updateMouse pressed%, released%
-        updateButtons pressed%
+        updateMouse pressed1%, released1%, pressed2%, released2%
+        updateButtons pressed1%
         updateSoundSettings
         _DISPLAY
     LOOP UNTIL buttons(buttonPlay).pressed = TRUE
@@ -169,9 +169,9 @@ DO
     drawButton buttonMusic
 
     DO: _LIMIT 30
-        updateMouse pressed%, released%
-        updateGrid xOffset%, yOffset%, pressed%, released%
-        updateButtons pressed%
+        updateMouse pressed1%, released1%, pressed2%, released2%
+        updateGrid xOffset%, yOffset%, pressed1%, released1%, pressed2%, released2%
+        updateButtons pressed1%
         updateSoundSettings
         _DISPLAY
         complete% = checkForCompletion%
@@ -187,8 +187,8 @@ DO
         drawButton buttonMusic
         waitForNoButton
         DO: _LIMIT 30
-            updateMouse pressed%, released%
-            updateButtons pressed%
+            updateMouse pressed1%, released1%, pressed2%, released2%
+            updateButtons pressed1%
             updateSoundSettings
             _DISPLAY
         LOOP UNTIL buttons(buttonContinue).pressed = TRUE
@@ -196,6 +196,35 @@ DO
         removeButtons
     END IF
 LOOP
+
+FUNCTION LoadImage& (fname$)
+    DIM image AS LONG
+    DIM f$
+    f$ = "./assets/" + fname$
+    image = _LOADIMAGE(f$, 32)
+    IF image = -1 THEN
+        PRINT "Unable to load "; f$
+        PRINT "Please make sure EXE is in same folder as morph.BAS"
+        PRINT "(Set Run/Output EXE to Source Folder option in the IDE before compiling)"
+        END
+    END IF
+    LoadImage& = image
+END FUNCTION
+
+FUNCTION SndOpen& (fname$)
+    DIM snd AS LONG
+    DIM f$
+    f$ = "./assets/" + fname$
+    snd = _SNDOPEN(f$)
+    IF snd = -1 THEN
+        PRINT "Unable to load "; f$
+        PRINT "Please make sure EXE is in same folder as morph.BAS"
+        PRINT "(Set Run/Output EXE to Source Folder option in the IDE before compiling)"
+        END
+    END IF
+    SndOpen& = snd
+END FUNCTION
+
 
 SUB updateSoundSettings
     SHARED buttons() AS BUTTON
@@ -231,7 +260,7 @@ FUNCTION setButton% (group%, name$, border&, x%, y%)
     SHARED buttons() AS BUTTON
     DIM id%
     id% = setButtonWithoutImage(group%, border&, x%, y%)
-    buttons(id%).imageHandle = _LOADIMAGE("assets/" + name$, 32)
+    buttons(id%).imageHandle = LoadImage(name$)
     buttons(id%).w = _WIDTH(buttons(id%).imageHandle)
     buttons(id%).h = _HEIGHT(buttons(id%).imageHandle)
     setButton% = id%
@@ -277,21 +306,21 @@ SUB drawButton (buttonId%)
 END SUB
 
 SUB waitForNoButton
-    DIM pressed%
-    pressed% = TRUE
+    DIM pressed1%
+    pressed1% = TRUE
     DO
         DO WHILE _MOUSEINPUT
         LOOP
-        pressed% = _MOUSEBUTTON(1)
-    LOOP UNTIL pressed% = FALSE
+        pressed1% = _MOUSEBUTTON(1)
+    LOOP UNTIL pressed1% = FALSE
 END SUB
 
-SUB updateButtons (pressed%)
+SUB updateButtons (pressed1%)
     SHARED buttons() AS BUTTON
     SHARED click&
     SHARED sfx%
     STATIC mouseX%, mouseY%
-    DIM i%, j%, deltaSgn%, delta%, d&
+    DIM i%, j%, deltaSgn%, delta%
 
     mouseX% = _MOUSEX
     mouseY% = _MOUSEY
@@ -301,7 +330,7 @@ SUB updateButtons (pressed%)
                 IF buttons(i%).group = -1 THEN
                     buttons(i%).targetAlpha = 0
                 END IF
-                IF pressed% = TRUE THEN
+                IF pressed1% = TRUE THEN
                     pressButton i%
                     IF sfx% THEN _SNDPLAY (click&)
                 END IF
@@ -348,24 +377,29 @@ FUNCTION checkForCompletion%
     NEXT
 END FUNCTION
 
-SUB updateMouse (pressed%, released%)
+SUB updateMouse (pressed1%, released1%, pressed2%, released2%)
     DIM d&
-
-    pressed% = FALSE
-    released% = FALSE
+    pressed1% = FALSE
+    released1% = FALSE
+    pressed2% = FALSE
+    released2% = FALSE
     DO WHILE _MOUSEINPUT
         d& = _DEVICEINPUT
         IF d& THEN
             IF _BUTTONCHANGE(1) = 1 THEN
-                released% = TRUE
+                released1% = TRUE
             ELSEIF _BUTTONCHANGE(1) = -1 THEN
-                pressed% = TRUE
+                pressed1% = TRUE
+            ELSEIF _BUTTONCHANGE(3) = 1 THEN
+                released2% = TRUE
+            ELSEIF _BUTTONCHANGE(3) = -1 THEN
+                pressed2% = TRUE
             END IF
         END IF
     LOOP
 END SUB
 
-SUB updateGrid (xOffset%, yOffset%, pressed%, released%)
+SUB updateGrid (xOffset%, yOffset%, pressed1%, released1%, pressed2%, released2%)
     SHARED gridSize%
     SHARED activeGrid%(), targetGrid%()
     SHARED tick&
@@ -373,42 +407,27 @@ SUB updateGrid (xOffset%, yOffset%, pressed%, released%)
     STATIC lastX%, lastY%, buttonState%
     DIM x%, y%
 
-    IF released% THEN buttonState% = 0
+    IF released1% OR released2% THEN buttonState% = 0
 
     x% = (_MOUSEX - 16 - xOffset%) / 32
     y% = (_MOUSEY - 16 - yOffset%) / 32
 
-    IF pressed% = TRUE THEN
-        IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
-            IF activeGrid%(x%, y%) <> FULL THEN buttonState% = FULL ELSE buttonState% = EMPTY
-        END IF
+    IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
+        IF pressed1% = TRUE THEN buttonState% = (activeGrid%(x%, y%) + 2) MOD 3
+        IF pressed2% = TRUE THEN buttonState% = (activeGrid%(x%, y%) + 1) MOD 3
     END IF
 
     IF lastX% > 0 AND lastY% > 0 AND lastX% <= gridSize% AND lastY% <= gridSize% THEN
         drawGridSquare lastX%, lastY%, xOffset%, yOffset%
     END IF
 
-    IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
-        IF buttonState% > 0 AND activeGrid%(x%, y%) <> buttonState% THEN activeGrid%(x%, y%) = buttonState%: IF sfx% THEN _SNDPLAY (tick&)
-        drawGridCursor x%, y%, xOffset%, yOffset%
-    ELSE
-        buttonState% = 0
+    IF (_MOUSEBUTTON(1) OR _MOUSEBUTTON(2)) AND x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
+        IF activeGrid%(x%, y%) <> buttonState% THEN activeGrid%(x%, y%) = buttonState%: IF sfx% THEN _SNDPLAY (tick&)
     END IF
 
     lastX% = x%
     lastY% = y%
 END SUB
-
-FUNCTION getGridColour& (x%, y%)
-    SHARED activeGrid%()
-    IF activeGrid%(x%, y%) = 2 THEN
-        getGridColour& = WHITE
-    ELSEIF activeGrid%(x%, y%) = 0 THEN
-        getGridColour& = DARKGREY
-    ELSE
-        getGridColour& = BLACK
-    END IF
-END FUNCTION
 
 FUNCTION widthFor& (c%)
     SHARED gridSize%
@@ -423,13 +442,19 @@ SUB drawGridOutline (x%, y%, xOffset%, yOffset%)
 END SUB
 
 SUB drawGridSquare (x%, y%, xOffset%, yOffset%)
-    LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), getGridColour&(x%, y%), BF
-    drawGridOutline x%, y%, xOffset%, yOffset%
-END SUB
+    SHARED activeGrid%()
+    SELECT CASE activeGrid%(x%, y%)
+        CASE UNKNOWN
+            LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), BLACK, BF
+        CASE EMPTY
+            LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), BLACK, BF
+            LINE (x% * 32 + xOffset% + 8, y% * 32 + yOffset% + 8)-(x% * 32 + xOffset% + 32 - 8, y% * 32 + yOffset% + 32 - 8), WHITE
+            LINE (x% * 32 + xOffset% + 32 - 8, y% * 32 + yOffset% + 8)-(x% * 32 + xOffset% + 8, y% * 32 + yOffset% + 32 - 8), WHITE
+        CASE FULL
+            LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), WHITE, BF
+    END SELECT
 
-SUB drawGridCursor (x%, y%, xOffset%, yOffset%)
-    LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), GREY, BF
-    LINE (x% * 32 + 8 + xOffset%, y% * 32 + 8 + yOffset%)-(x% * 32 - 8 + 32 + xOffset%, y% * 32 - 8 + 32 + yOffset%), getGridColour&(x%, y%), BF
+    drawGridOutline x%, y%, xOffset%, yOffset%
 END SUB
 
 SUB prepareData (size%)
