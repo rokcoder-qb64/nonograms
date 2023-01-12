@@ -1,3 +1,4 @@
+$DEBUG
 REM ---------------------------------------------------------------------------------------------------------------------------------
 REM Nonograms (aka Hanjie)
 REM   Programmed by RokCoder (aka Cliff Davies)
@@ -73,7 +74,7 @@ CLS
 
 REM ---------------------------------------------------------------------------------------------------------------------------------
 
-DIM xOffset%, yOffset%, complete%, s%, d!
+DIM xOffset%, yOffset%, complete%, s%, d!, pressed%, released%
 
 DIM button5x5 AS INTEGER
 DIM button10x10 AS INTEGER
@@ -84,13 +85,15 @@ DIM buttonNormal AS INTEGER
 DIM buttonHard AS INTEGER
 DIM buttonPlay AS INTEGER
 DIM buttonContinue AS INTEGER
+DIM buttonExit AS INTEGER
 
 DIM titlePageImage&, gameImage&, zimmer&, click&, tick&, congrats&
-DIM buttonBorderImage&, playButtonBorderImage&
+DIM buttonBorderImage&, playButtonBorderImage&, exitButtonBorderImage&
 
 titlePageImage& = _LOADIMAGE("assets/nonograms.png", 32)
 buttonBorderImage& = _LOADIMAGE("assets/button border.png", 32)
 playButtonBorderImage& = _LOADIMAGE("assets/play border.png", 32)
+exitButtonBorderImage& = _LOADIMAGE("assets/exit border.png", 32)
 gameImage& = _LOADIMAGE("assets/game.png", 32)
 congrats& = _LOADIMAGE("assets/congrats.png", 32)
 
@@ -108,6 +111,7 @@ buttonNormal = setButton%(2, "button normal.png", buttonBorderImage&, 488, 510)
 buttonHard = setButton%(2, "button hard.png", buttonBorderImage&, 804, 510)
 buttonPlay = setButton%(-1, "button play.png", playButtonBorderImage&, 340, 810)
 buttonContinue = setButton%(-1, "continue.png", playButtonBorderImage&, 340, 810)
+buttonExit = setButton%(-1, "exit.png", exitButtonBorderImage&, 1130, 880)
 
 pressButton button10x10
 pressButton buttonNormal
@@ -127,7 +131,8 @@ DO
     waitForNoButton
 
     DO: _LIMIT 30
-        updateButtons
+        updateMouse pressed%, released%
+        updateButtons pressed%
         _DISPLAY
     LOOP UNTIL buttons(buttonPlay).pressed = TRUE
 
@@ -140,23 +145,31 @@ DO
     createNonogram d!
     resetGrid
     display xOffset%, yOffset%
+    drawButton buttonExit
 
     DO: _LIMIT 30
-        updateMouse xOffset%, yOffset%
+        updateMouse pressed%, released%
+        updateGrid xOffset%, yOffset%, pressed%, released%
+        updateButtons pressed%
         _DISPLAY
         complete% = checkForCompletion%
-    LOOP UNTIL complete% = TRUE
-
-    display xOffset%, yOffset%
-    _PUTIMAGE (32, 32), congrats&
-    drawButton buttonContinue
-    waitForNoButton
-    DO: _LIMIT 30
-        updateButtons
-        _DISPLAY
-    LOOP UNTIL buttons(buttonContinue).pressed = TRUE
+    LOOP UNTIL complete% = TRUE OR buttons(buttonExit).pressed = TRUE
 
     removeButtons
+
+    IF complete% = TRUE THEN
+        display xOffset%, yOffset%
+        _PUTIMAGE (32, 32), congrats&
+        drawButton buttonContinue
+        waitForNoButton
+        DO: _LIMIT 30
+            updateMouse pressed%, released%
+            updateButtons pressed%
+            _DISPLAY
+        LOOP UNTIL buttons(buttonContinue).pressed = TRUE
+
+        removeButtons
+    END IF
 LOOP
 
 SUB removeButtons
@@ -209,20 +222,12 @@ SUB waitForNoButton
     LOOP UNTIL pressed% = FALSE
 END SUB
 
-SUB updateButtons
+SUB updateButtons (pressed%)
     SHARED buttons() AS BUTTON
     SHARED click&
     STATIC mouseX%, mouseY%
-    DIM i%, j%, pressed%, deltaSgn%, delta%, d&
-    pressed% = FALSE
-    DO WHILE _MOUSEINPUT
-        d& = _DEVICEINPUT
-        IF d& THEN
-            IF _BUTTONCHANGE(1) = -1 THEN
-                pressed% = TRUE
-            END IF
-        END IF
-    LOOP
+    DIM i%, j%, deltaSgn%, delta%, d&
+
     mouseX% = _MOUSEX
     mouseY% = _MOUSEY
     FOR i% = 1 TO UBOUND(buttons)
@@ -278,28 +283,40 @@ FUNCTION checkForCompletion%
     NEXT
 END FUNCTION
 
-SUB updateMouse (xOffset%, yOffset%)
-    SHARED gridSize%
-    SHARED activeGrid%(), targetGrid%()
-    SHARED tick&
-    STATIC lastX%, lastY%, buttonState%, x%, y%
+SUB updateMouse (pressed%, released%)
     DIM d&
 
+    pressed% = FALSE
+    released% = FALSE
     DO WHILE _MOUSEINPUT
         d& = _DEVICEINPUT
         IF d& THEN
             IF _BUTTONCHANGE(1) = 1 THEN
-                buttonState% = 0
+                released% = TRUE
             ELSEIF _BUTTONCHANGE(1) = -1 THEN
-                IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
-                    IF activeGrid%(x%, y%) <> FULL THEN buttonState% = FULL ELSE buttonState% = EMPTY
-                END IF
+                pressed% = TRUE
             END IF
         END IF
     LOOP
+END SUB
+
+SUB updateGrid (xOffset%, yOffset%, pressed%, released%)
+    SHARED gridSize%
+    SHARED activeGrid%(), targetGrid%()
+    SHARED tick&
+    STATIC lastX%, lastY%, buttonState%
+    DIM x%, y%
+
+    IF released% THEN buttonState% = 0
 
     x% = (_MOUSEX - 16 - xOffset%) / 32
     y% = (_MOUSEY - 16 - yOffset%) / 32
+
+    IF pressed% = TRUE THEN
+        IF x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
+            IF activeGrid%(x%, y%) <> FULL THEN buttonState% = FULL ELSE buttonState% = EMPTY
+        END IF
+    END IF
 
     IF lastX% > 0 AND lastY% > 0 AND lastX% <= gridSize% AND lastY% <= gridSize% THEN
         drawGridSquare lastX%, lastY%, xOffset%, yOffset%
