@@ -372,7 +372,7 @@ FUNCTION checkForCompletion%
     checkForCompletion% = TRUE
     FOR y% = 1 TO gridSize%
         FOR x% = 1 TO gridSize%
-            IF activeGrid%(x%, y%) <> targetGrid%(x%, y%) THEN checkForCompletion% = FALSE
+            IF (targetGrid%(x%, y%) = FULL AND activeGrid%(x%, y%) <> FULL) OR (targetGrid%(x%, y%) = EMPTY AND activeGrid%(x%, y%) = FULL) THEN checkForCompletion% = FALSE
         NEXT
     NEXT
 END FUNCTION
