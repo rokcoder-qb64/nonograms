@@ -1,4 +1,3 @@
-$DEBUG
 REM ---------------------------------------------------------------------------------------------------------------------------------
 REM Nonograms (aka Hanjie)
 REM   Programmed by RokCoder (aka Cliff Davies)
@@ -54,18 +53,13 @@ REM ----------------------------------------------------------------------------
 REDIM targetGrid%(0, 0)
 REM All nonogram line data runLines(a,b,c) where a=1 or 2 (row or column), b=row/column index and c=nonogram run data
 REDIM runs%(0, 0, 0)
-REM Relates to r%(a,b,c) and stores number of entries for c
+REM Relates to runs%(a,b,c) and stores number of entries for c
 REDIM numRuns%(0, 0)
-REM Stores all possible gap permutations for a row or column
-REDIM gaps%(0)
-REM Stores all possible m% for each row and column
-REDIM permutations&(0, 0, 0): REM This will blow up if any row or column has more than 6000 m%
-REM Permutation count for each row and column
-REDIM numPermutations%(0, 0)
 REM Grid for solving in
 REDIM activeGrid%(0, 0)
 
 DIM gridSize%
+DIM gridMask&
 
 REM ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -74,7 +68,7 @@ CLS
 
 REM ---------------------------------------------------------------------------------------------------------------------------------
 
-DIM xOffset%, yOffset%, complete%, s%, d!, pressed1%, released1%, sfx%, msc%, pressed2%, released2%
+DIM xOffset%, yOffset%, complete%, s%, d!, pressed1%, released1%, sfx%, msc%, pressed2%, released2%, hints%, errors%
 
 DIM button5x5 AS INTEGER
 DIM button10x10 AS INTEGER
@@ -88,9 +82,11 @@ DIM buttonContinue AS INTEGER
 DIM buttonExit AS INTEGER
 DIM buttonSound AS INTEGER
 DIM buttonMusic AS INTEGER
+DIM buttonError AS INTEGER
+DIM buttonHints AS INTEGER
 
 DIM titlePageImage&, gameImage&, zimmer&, click&, tick&, congrats&
-DIM buttonBorderImage&, playButtonBorderImage&, exitButtonBorderImage&, soundon&, soundoff&, musicon&, musicoff&
+DIM buttonBorderImage&, playButtonBorderImage&, exitButtonBorderImage&, soundon&, soundoff&, musicon&, musicoff&, errors&, errorsoff&, hints&, hintsoff&
 
 titlePageImage& = LoadImage("nonograms.png")
 buttonBorderImage& = LoadImage("button border.png")
@@ -102,6 +98,10 @@ soundon& = LoadImage("button sound.png")
 soundoff& = LoadImage("button sound off.png")
 musicon& = LoadImage("button music.png")
 musicoff& = LoadImage("button music off.png")
+errors& = LoadImage("errors.png")
+errorsoff& = LoadImage("errors off.png")
+hints& = LoadImage("hints.png")
+hintsoff& = LoadImage("hints off.png")
 
 zimmer& = SndOpen("hans zimmer - time.ogg")
 click& = SndOpen("click.ogg")
@@ -111,6 +111,9 @@ _SNDLOOP zimmer&
 
 sfx% = TRUE
 msc% = TRUE
+
+hints% = FALSE
+errors% = FALSE
 
 button5x5 = setButton%(1, "button 5x5.png", buttonBorderImage&, 14, 300)
 button10x10 = setButton%(1, "button 10x10.png", buttonBorderImage&, 330, 300)
@@ -124,12 +127,16 @@ buttonContinue = setButton%(-1, "continue.png", playButtonBorderImage&, 340, 810
 buttonExit = setButton%(-1, "exit.png", exitButtonBorderImage&, 1130, 880)
 buttonSound = setButtonWithoutImage%(-1, exitButtonBorderImage&, 1130, 10)
 buttonMusic = setButtonWithoutImage%(-1, exitButtonBorderImage&, 1130, 90)
+buttonError = setButtonWithoutImage%(-1, exitButtonBorderImage&, 10, 878)
+buttonHints = setButtonWithoutImage%(-1, exitButtonBorderImage&, 10, 798)
 
 pressButton button10x10
 pressButton buttonNormal
 
 changeButtonImage buttonSound, soundon&
 changeButtonImage buttonMusic, musicon&
+changeButtonImage buttonError, errorsoff&
+changeButtonImage buttonHints, hintsoff&
 
 DO
     _PUTIMAGE (0, 0), titlePageImage&
@@ -167,12 +174,15 @@ DO
     drawButton buttonExit
     drawButton buttonSound
     drawButton buttonMusic
+    drawButton buttonError
+    drawButton buttonHints
 
     DO: _LIMIT 30
         updateMouse pressed1%, released1%, pressed2%, released2%
         updateGrid xOffset%, yOffset%, pressed1%, released1%, pressed2%, released2%
         updateButtons pressed1%
         updateSoundSettings
+        updateHelpSettings xOffset%, yOffset%
         _DISPLAY
         complete% = checkForCompletion%
     LOOP UNTIL complete% = TRUE OR buttons(buttonExit).pressed = TRUE
@@ -248,6 +258,29 @@ SUB updateSoundSettings
     END IF
 END SUB
 
+SUB updateHelpSettings (xOffset%, yOffset%)
+    SHARED buttons() AS BUTTON
+    SHARED buttonError AS INTEGER
+    SHARED buttonHints AS INTEGER
+    SHARED hints&, hintsoff&, errors&, errorsoff&
+    SHARED hints%, errors%
+
+    IF buttons(buttonError).pressed THEN
+        IF errors% THEN changeButtonImage buttonError, errorsoff& ELSE changeButtonImage buttonError, errors&
+        errors% = NOT errors%
+        drawButton buttonError
+        buttons(buttonError).pressed = FALSE
+        updateAllGrid xOffset%, yOffset%
+    END IF
+    IF buttons(buttonHints).pressed THEN
+        IF hints% THEN changeButtonImage buttonHints, hintsoff& ELSE changeButtonImage buttonHints, hints&
+        hints% = NOT hints%
+        drawButton buttonHints
+        buttons(buttonHints).pressed = FALSE
+        updateAllRunDisplay xOffset%, yOffset%
+    END IF
+END SUB
+
 SUB removeButtons
     SHARED buttons() AS BUTTON
     DIM i%
@@ -315,7 +348,7 @@ SUB waitForNoButton
     LOOP UNTIL pressed1% = FALSE
 END SUB
 
-SUB updateButtons (pressed1%)
+SUB updateButtons (pressed%)
     SHARED buttons() AS BUTTON
     SHARED click&
     SHARED sfx%
@@ -330,12 +363,12 @@ SUB updateButtons (pressed1%)
                 IF buttons(i%).group = -1 THEN
                     buttons(i%).targetAlpha = 0
                 END IF
-                IF pressed1% = TRUE THEN
+                IF pressed% = TRUE THEN
                     pressButton i%
                     IF sfx% THEN _SNDPLAY (click&)
                 END IF
             ELSEIF buttons(i%).group = -1 THEN
-                buttons(i%).targetAlpha = 192
+                buttons(i%).targetAlpha = 128
             END IF
         END IF
     NEXT
@@ -422,11 +455,75 @@ SUB updateGrid (xOffset%, yOffset%, pressed1%, released1%, pressed2%, released2%
     END IF
 
     IF (_MOUSEBUTTON(1) OR _MOUSEBUTTON(2)) AND x% > 0 AND x% <= gridSize% AND y% > 0 AND y% <= gridSize% THEN
-        IF activeGrid%(x%, y%) <> buttonState% THEN activeGrid%(x%, y%) = buttonState%: IF sfx% THEN _SNDPLAY (tick&)
+        IF activeGrid%(x%, y%) <> buttonState% THEN activeGrid%(x%, y%) = buttonState%: updateRunDisplay xOffset%, yOffset%, x%, y%: IF sfx% THEN _SNDPLAY (tick&)
     END IF
 
     lastX% = x%
     lastY% = y%
+END SUB
+
+SUB updateAllRunDisplay (xOffset%, yOffset%)
+    SHARED gridSize%
+    DIM i%
+    FOR i% = 1 TO gridSize%
+        updateRunDisplay xOffset%, yOffset%, i%, i%
+    NEXT i%
+END SUB
+
+SUB updateAllGrid (xOffset%, yOffset%)
+    SHARED gridSize%
+    DIM x%, y%
+    FOR y% = 1 TO gridSize%
+        FOR x% = 1 TO gridSize%
+            drawGridSquare x%, y%, xOffset%, yOffset%
+        NEXT
+    NEXT
+END SUB
+
+SUB updateRunDisplay (xOffset%, yOffset%, x%, y%)
+    SHARED numRuns%(), runs%(), gridMask&, hints%
+    DIM permutations&(8000), numPermutations%, fullMask&, emptyMask&, i%, textX%, r$, activeFull&, activeEmpty&
+
+    COLOR WHITE
+    IF hints% THEN
+        getGapPermutations y%, ROW, permutations&(), numPermutations%
+        IF numPermutations% > 0 THEN
+            getCommonalities fullMask&, emptyMask&, permutations&(), numPermutations%
+            IF fullMask& > 0 OR emptyMask& > 0 THEN
+                getBitwiseMasks y%, ROW, activeFull&, activeEmpty&
+                IF (fullMask& AND NOT activeFull&) > 0 OR (emptyMask& AND NOT activeEmpty&) > 0 THEN COLOR GREEN
+            END IF
+        END IF
+    END IF
+
+    textX% = 4
+    FOR i% = numRuns%(ROW, y%) TO 1 STEP -1
+        r$ = STR$(runs%(ROW, y%, i%))
+        r$ = RIGHT$(r$, LEN(r$) - 1)
+        textX% = textX% - LEN(r$) - 1
+        LOCATE (yOffset% - 6) / 16 + y% * 2 + 2, (xOffset% + 3) / 8 + textX%
+        PRINT r$
+    NEXT
+
+    COLOR WHITE
+    IF hints% THEN
+        getGapPermutations x%, COLUMN, permutations&(), numPermutations%
+        IF numPermutations% > 0 THEN
+            getCommonalities fullMask&, emptyMask&, permutations&(), numPermutations%
+            IF fullMask& > 0 OR emptyMask& > 0 THEN
+                getBitwiseMasks x%, COLUMN, activeFull&, activeEmpty&
+                IF (fullMask& AND NOT activeFull&) > 0 OR (emptyMask& AND NOT activeEmpty&) > 0 THEN COLOR GREEN
+            END IF
+        END IF
+    END IF
+
+    FOR i% = 1 TO numRuns%(COLUMN, x%)
+        LOCATE (yOffset% - 6) / 16 + i% - numRuns%(COLUMN, x%) + 2, (xOffset% + 3) / 8 + x% * 4 + 2
+        r$ = STR$(runs%(COLUMN, x%, i%))
+        r$ = RIGHT$(r$, LEN(r$) - 1)
+        IF LEN(r$) < 2 THEN r$ = " " + r$
+        PRINT r$
+    NEXT
 END SUB
 
 FUNCTION widthFor& (c%)
@@ -442,7 +539,7 @@ SUB drawGridOutline (x%, y%, xOffset%, yOffset%)
 END SUB
 
 SUB drawGridSquare (x%, y%, xOffset%, yOffset%)
-    SHARED activeGrid%()
+    SHARED activeGrid%(), errors%, targetGrid%()
     SELECT CASE activeGrid%(x%, y%)
         CASE UNKNOWN
             LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), BLACK, BF
@@ -454,31 +551,32 @@ SUB drawGridSquare (x%, y%, xOffset%, yOffset%)
             LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), WHITE, BF
     END SELECT
 
+    IF errors% THEN
+        IF activeGrid%(x%, y%) <> UNKNOWN THEN
+            IF activeGrid%(x%, y%) <> targetGrid%(x%, y%) THEN
+                LINE (x% * 32 + xOffset%, y% * 32 + yOffset%)-(x% * 32 + 32 + xOffset%, y% * 32 + 32 + yOffset%), _RGBA(255, 0, 0, 128), BF
+            END IF
+        END IF
+    END IF
+
     drawGridOutline x%, y%, xOffset%, yOffset%
 END SUB
 
 SUB prepareData (size%)
     SHARED gridSize%
+    SHARED gridMask&
     SHARED targetGrid%()
     SHARED runs%()
     SHARED numRuns%()
-    SHARED gaps%()
-    SHARED permutations&()
-    SHARED numPermutations%()
     SHARED activeGrid%()
     gridSize% = size%
+    gridMask& = (2 ^ gridSize%) - 1
     REM All cells in grid(,) can be 0 (unknown), 1 (empty) or 2 (full)
     REDIM targetGrid%(gridSize% + 1, gridSize% + 1)
     REM All nonogram line data runLines(a,b,c) where a=1 or 2 (row or column), b=row/column index and c=nonogram run data
     REDIM runs%(2, gridSize%, (gridSize% + 1) / 2)
     REM Relates to r%(a,b,c) and stores number of entries for c
     REDIM numRuns%(2, gridSize%)
-    REM Stores all possible gap permutations for a row or column
-    REDIM gaps%((gridSize% + 1) / 2 + 1)
-    REM Stores all possible m% for each row and column
-    REDIM permutations&(2, gridSize%, 6000): REM This will blow up if any row or column has more than 6000 m%
-    REM Permutation count for each row and column
-    REDIM numPermutations%(2, gridSize%)
     REM Grid for solving in
     REDIM activeGrid%(gridSize%, gridSize%)
 END SUB
@@ -520,13 +618,27 @@ SUB create (d!)
     NEXT
 END SUB
 
+SUB initLineStartAndDeltas (dir%, index%, x%, y%, dx%, dy%)
+    IF dir% = ROW THEN
+        x% = 1
+        y% = index%
+        dx% = 1
+        dy% = 0
+    ELSE
+        x% = index%
+        y% = 1
+        dx% = 0
+        dy% = 1
+    END IF
+END SUB
+
 SUB createLine (index%, dir%)
     SHARED gridSize%
     SHARED targetGrid%()
     SHARED runs%()
     SHARED numRuns%()
     DIM x%, y%, dx%, dy%, runIndex%, length%
-    IF dir% = ROW THEN x% = 1: y% = index%: dx% = 1: dy% = 0 ELSE x% = index%: y% = 1: dx% = 0: dy% = 1
+    initLineStartAndDeltas dir%, index%, x%, y%, dx%, dy%
     runIndex% = 1
     DO
         DO WHILE x% <= gridSize% AND y% <= gridSize% AND targetGrid%(x%, y%) = 1
@@ -553,7 +665,7 @@ SUB display (xOffset%, yOffset%)
     SHARED numRuns%()
     SHARED activeGrid%()
     SHARED runs%()
-    DIM x%, y%, maxCountX%, maxCountY%, r$, textX%, i%, temp%, totalWidth%, totalHeight%
+    DIM x%, y%, maxCountX%, maxCountY%, i%, temp%, totalWidth%, totalHeight%
     _PUTIMAGE (0, 0), gameImage&
     COLOR WHITE, _RGBA32(0, 0, 0, 0)
     REM Determine longest run of integers for a column
@@ -579,157 +691,67 @@ SUB display (xOffset%, yOffset%)
     yOffset% = 480 - totalHeight% / 2 + 16 * maxCountY% - 48
     xOffset% = xOffset% - xOffset% MOD 8
     yOffset% = yOffset% - yOffset% MOD 16
-    REM Display the column run numbers
-    FOR x% = 1 TO gridSize%
-        FOR y% = 1 TO numRuns%(COLUMN, x%)
-            LOCATE yOffset% / 16 + y% - numRuns%(COLUMN, x%) + 2, xOffset% / 8 + x% * 4 + 2
-            r$ = STR$(runs%(COLUMN, x%, y%))
-            r$ = RIGHT$(r$, LEN(r$) - 1)
-            IF LEN(r$) < 2 THEN r$ = " " + r$
-            PRINT r$
-        NEXT
-    NEXT
-    REM Display the row run numbers
-    FOR y% = 1 TO gridSize%
-        textX% = 4
-        FOR x% = numRuns%(ROW, y%) TO 1 STEP -1
-            r$ = STR$(runs%(ROW, y%, x%))
-            r$ = RIGHT$(r$, LEN(r$) - 1)
-            textX% = textX% - LEN(r$) - 1
-            LOCATE yOffset% / 16 + y% * 2 + 2, xOffset% / 8 + textX%
-            PRINT r$
-        NEXT
-    NEXT
+
     xOffset% = xOffset% - 3
     yOffset% = yOffset% + 6
-    FOR y% = 1 TO gridSize%
-        FOR x% = 1 TO gridSize%
-            drawGridSquare x%, y%, xOffset%, yOffset%
-        NEXT
-    NEXT
+
+    updateAllRunDisplay xOffset%, yOffset%
+    updateAllGrid xOffset%, yOffset%
 END SUB
 
+'======================================================================================================================================================================================================
+
 FUNCTION solve%
-    SHARED gridSize%
-    SHARED activeGrid%()
-    DIM x%, y%, dir%, i%, solvable%, unfilledCount%
+    SHARED gridSize%, activeGrid%()
+    DIM x%, y%, dir%, i%, unfilledCount%, tempCount%, permutations&(6000), numPermutations%, fullMask&, emptyMask&
+
     FOR y% = 1 TO gridSize%
         FOR x% = 1 TO gridSize%
             activeGrid%(x%, y%) = UNKNOWN
         NEXT
     NEXT
-    FOR dir% = 1 TO 2
-        FOR i% = 1 TO gridSize%
-            getGapPermutations i%, dir%
-        NEXT
-    NEXT
+
     unfilledCount% = gridSize% * gridSize%
+
     DO
-        scan solvable%, unfilledCount%
-    LOOP UNTIL unfilledCount% = 0 OR solvable% = FALSE
+        tempCount% = unfilledCount%
+        FOR dir% = 1 TO 2
+            FOR i% = 1 TO gridSize%
+                getGapPermutations i%, dir%, permutations&(), numPermutations%
+                getCommonalities fullMask&, emptyMask&, permutations&(), numPermutations%
+                unfilledCount% = unfilledCount% - updateGridFromCommonalities%(dir%, i%, fullMask&, emptyMask&)
+            NEXT
+        NEXT
+    LOOP UNTIL unfilledCount% = 0 OR unfilledCount% = tempCount%
+
     IF unfilledCount% = 0 THEN solve% = TRUE ELSE solve% = FALSE
 END FUNCTION
 
-SUB scan (solvable%, unfilledCount%)
-    DIM solvableLine%
-    solvable% = FALSE
-    solvableLine% = FALSE
-    setCommonalities ROW, solvableLine%, unfilledCount%
-    IF solvableLine% = TRUE THEN solvable% = TRUE: removeNonMatchingLines COLUMN
-    solvableLine% = FALSE
-    setCommonalities COLUMN, solvableLine%, unfilledCount%
-    IF solvableLine% = TRUE THEN solvable% = TRUE: removeNonMatchingLines ROW
-END SUB
+'======================================================================================================================================================================================================
+' Create a list of all permutations of runs and gaps that would satisfy this column/row and any cells already marked as full or empty within
 
-SUB setCommonalities (dir%, solvableLine%, unfilledCount%)
-    SHARED gridSize%
-    SHARED activeGrid%()
-    SHARED permutations&()
-    SHARED numPermutations%()
-    DIM valid%, i%, k%, j%, x%, y%, dx%, dy%, bitValue&, bitMask&
-    FOR i% = 1 TO gridSize%
-        IF dir% = ROW THEN x% = 1: y% = i%: dx% = 1: dy% = 0 ELSE x% = i%: y% = 1: dx% = 0: dy% = 1
-        bitMask& = 1
-        FOR k% = 1 TO gridSize%
-            IF activeGrid%(x%, y%) = UNKNOWN THEN
-                valid% = TRUE
-                bitValue& = permutations&(dir%, i%, 1) AND bitMask&
-                j% = 2
-                DO WHILE j% <= numPermutations%(dir%, i%) AND valid% = TRUE
-                    IF (((bitValue& > 0) <> ((permutations&(dir%, i%, j%) AND bitMask&) > 0))) THEN valid% = FALSE
-                    j% = j% + 1
-                LOOP
-                IF valid% = TRUE THEN
-                    IF bitValue& > 0 THEN bitValue& = 1
-                    activeGrid%(x%, y%) = bitValue& + 1
-                    solvableLine% = TRUE
-                    unfilledCount% = unfilledCount% - 1
-                END IF
-            END IF
-            bitMask& = bitMask& * 2
-            x% = x% + dx%: y% = y% + dy%
-        NEXT
-    NEXT
-END SUB
+SUB getGapPermutations (index%, direction%, permutations&(), numPermutations%)
+    SHARED numRuns%(), gridSize%, runs%(), gridMask&
+    DIM gapCount%, j%, k%, l%, p%, fullMask&, emptyMask&, permutation&, gaps%((gridSize% + 1) / 2 + 1)
 
-SUB removeNonMatchingLines (dir%)
-    SHARED gridSize%
-    SHARED activeGrid%()
-    SHARED numPermutations%()
-    SHARED permutations&()
-    DIM i%, k%, j%, x%, y%, dx%, dy%, bitValue%, bitMask&
-    FOR i% = 1 TO gridSize%
-        IF dir% = ROW THEN x% = 1: y% = i%: dx% = 1: dy% = 0 ELSE x% = i%: y% = 1: dx% = 0: dy% = 1
-        bitMask& = 1
-        FOR k% = 1 TO gridSize%
-            bitValue% = activeGrid%(x%, y%)
-            IF bitValue% > 0 THEN
-                j% = numPermutations%(dir%, i%)
-                DO WHILE j% > 0
-                    IF (((bitValue% > 1) <> ((permutations&(dir%, i%, j%) AND bitMask&) > 0))) THEN permutations&(dir%, i%, j%) = -1
-                    j% = j% - 1
-                LOOP
-            END IF
-            bitMask& = bitMask& * 2
-            x% = x% + dx%: y% = y% + dy%
-        NEXT
-    NEXT
-    removeNullStrings (dir%)
-END SUB
+    getBitwiseMasks index%, direction%, fullMask&, emptyMask&
 
-SUB removeNullStrings (dir%)
-    SHARED gridSize%
-    SHARED numPermutations%()
-    SHARED permutations&()
-    DIM i%, k%, j%
-    FOR i% = 1 TO gridSize%
-        k% = 0
-        FOR j% = 1 TO numPermutations%(dir%, i%)
-            IF permutations&(dir%, i%, j%) = -1 THEN k% = k% + 1 ELSE IF k% > 0 THEN permutations&(dir%, i%, j% - k%) = permutations&(dir%, i%, j%)
-        NEXT
-        numPermutations%(dir%, i%) = numPermutations%(dir%, i%) - k%
-    NEXT
-END SUB
-
-SUB getGapPermutations (i%, dir%)
-    SHARED numRuns%()
-    SHARED gaps%()
-    SHARED gridSize%
-    SHARED runs%()
-    SHARED numPermutations%()
-    DIM gapCount%, j%, k%, l%, p%
-    gapCount% = numRuns%(dir%, i%) + 1
+    gapCount% = numRuns%(direction%, index%) + 1
     FOR j% = 1 TO gapCount%
         gaps%(j%) = 0
     NEXT
     k% = gridSize%
-    IF gapCount% > 1 THEN FOR j% = 1 TO gapCount% - 1: k% = k% - runs%(dir%, i%, j%): NEXT
+    IF gapCount% > 1 THEN FOR j% = 1 TO gapCount% - 1: k% = k% - runs%(direction%, index%, j%): NEXT
     IF gapCount% > 2 THEN k% = k% - (gapCount% - 2)
+
     l% = 0
     p% = 0
     DO
         gaps%(gapCount%) = k% - l%
-        addPermutation gapCount%, p%, i%, dir%
+
+        permutation& = getBitwisePermutation&(gapCount%, index%, direction%, gaps%())
+        IF (permutation& AND emptyMask&) = 0 AND (NOT permutation& AND fullMask&) = 0 THEN p% = p% + 1: permutations&(p%) = permutation&
+
         j% = 0
         DO
             j% = j% + 1
@@ -737,23 +759,43 @@ SUB getGapPermutations (i%, dir%)
             l% = l% + 1
             IF l% > k% THEN l% = l% - gaps%(j%): gaps%(j%) = 0
         LOOP UNTIL j% = gapCount% OR gaps%(j%) <> 0
+
     LOOP UNTIL j% = gapCount%
-    numPermutations%(dir%, i%) = p%
+
+    numPermutations% = p%
 END SUB
 
-SUB addPermutation (gapCount%, p%, i%, dir%)
-    SHARED gaps%()
+'======================================================================================================================================================================================================
+
+SUB getBitwiseMasks (index%, direction%, fullMask&, emptyMask&)
+    SHARED activeGrid%(), gridSize%
+    DIM b&, i%, sx%, sy%, dx%, dy%, bitMask&
+    initLineStartAndDeltas direction%, index%, sx%, sy%, dx%, dy%
+    bitMask& = 0: b& = 1
+    fullMask& = 0
+    emptyMask& = 0
+    FOR i% = 1 TO gridSize%
+        IF activeGrid%(sx%, sy%) = FULL THEN fullMask& = fullMask& OR b&
+        IF activeGrid%(sx%, sy%) = EMPTY THEN emptyMask& = emptyMask& OR b&
+        b& = b& * 2
+        sx% = sx% + dx%: sy% = sy% + dy%
+    NEXT
+END SUB
+
+'======================================================================================================================================================================================================
+
+FUNCTION getBitwisePermutation& (gapCount%, i%, dir%, gaps%())
     SHARED runs%()
-    SHARED permutations&()
     DIM e&, b&, w%
-    p% = p% + 1
     e& = 0: b& = 1
     repeatByte 0, gaps%(1), b&, e&
     IF gapCount% > 1 THEN repeatByte 1, runs%(dir%, i%, 1), b&, e&
     IF gapCount% > 2 THEN FOR w% = 2 TO gapCount% - 1: repeatByte 0, gaps%(w%) + 1, b&, e&: repeatByte 1, runs%(dir%, i%, w%), b&, e&: NEXT
     repeatByte 0, gaps%(gapCount%), b&, e&
-    permutations&(dir%, i%, p%) = e&
-END SUB
+    getBitwisePermutation& = e&
+END FUNCTION
+
+'======================================================================================================================================================================================================
 
 SUB repeatByte (byte%, num%, b&, e&)
     DIM t%
@@ -765,3 +807,60 @@ SUB repeatByte (byte%, num%, b&, e&)
         END IF
     END IF
 END SUB
+
+'======================================================================================================================================================================================================
+' Fom all the permutations, find out any commonalities that run through them all and remove the rest
+
+SUB getCommonalities (fullMask&, emptyMask&, permutations&(), numPermutations%)
+    SHARED gridSize%
+    SHARED activeGrid%()
+    SHARED gridMask&
+    DIM i%
+
+    IF numPermutations% < 1 THEN fullMask& = 0: emptyMask& = 0: EXIT SUB
+
+    fullMask& = gridMask&
+    emptyMask& = gridMask&
+
+    FOR i% = 1 TO numPermutations%
+        fullMask& = fullMask& AND permutations&(i%)
+        emptyMask& = emptyMask& AND NOT permutations&(i%)
+    NEXT i%
+END SUB
+
+SUB removeSetCommonalities (index%, direction%, permutations&(), numPermutations%)
+    SHARED gridSize%
+    SHARED activeGrid%()
+    DIM i%, t%, fullMask&, emptyMask&
+
+    IF numPermutations% < 1 THEN EXIT SUB
+
+    getBitwiseMasks index%, direction%, fullMask&, emptyMask&
+
+    t% = 1
+    FOR i% = 1 TO numPermutations%
+        IF (permutations&(i%) AND NOT fullMask&) > 0 OR ((NOT permutations&(i%)) AND NOT emptyMask&) > 0 THEN permutations&(t%) = permutations&(i%): t% = t% + 1
+    NEXT i%
+    numPermutations% = t% - 1
+END SUB
+
+FUNCTION updateGridFromCommonalities% (direction%, index%, fullMask&, emptyMask&)
+    SHARED gridSize%, activeGrid%()
+    DIM x%, y%, dx%, dy%, b&, i%, count%
+
+    initLineStartAndDeltas direction%, index%, x%, y%, dx%, dy%
+    count% = 0
+    b& = 1
+    FOR i% = 1 TO gridSize%
+        IF activeGrid%(x%, y%) = UNKNOWN THEN
+            IF (fullMask& AND b&) > 0 THEN activeGrid%(x%, y%) = FULL: count% = count% + 1 ELSE IF (emptyMask& AND b&) > 0 THEN activeGrid%(x%, y%) = EMPTY: count% = count% + 1
+        END IF
+        x% = x% + dx%
+        y% = y% + dy%
+        b& = b& * 2
+    NEXT i%
+    updateGridFromCommonalities% = count%
+END FUNCTION
+
+'======================================================================================================================================================================================================
+
